@@ -1,3 +1,3 @@
-import { filterDiscussionReferences } from './utils/textFormatter';
+import { filterDiscussionReferences, postFilterDiscussionReferences } from './utils/textFormatter';
 export { default as extend } from './extend';
-export { filterDiscussionReferences };
+export { filterDiscussionReferences, postFilterDiscussionReferences };
