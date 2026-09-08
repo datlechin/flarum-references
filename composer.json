@@ -1,0 +1,116 @@
+{
+    "name": "datlechin/flarum-references",
+    "description": "Records which posts point at which discussions, and shows it at the other end.",
+    "keywords": [
+        "flarum",
+        "references",
+        "backlinks",
+        "cross-reference",
+        "mentions",
+        "citation"
+    ],
+    "type": "flarum-extension",
+    "license": "MIT",
+    "support": {
+        "issues": "https://github.com/datlechin/flarum-references/issues",
+        "source": "https://github.com/datlechin/flarum-references"
+    },
+    "homepage": "https://nqd.vn",
+    "funding": [
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/datlechin"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "flarum/core": "^2.0.0-rc.7"
+    },
+    "authors": [
+        {
+            "name": "Ngo Quoc Dat",
+            "email": "datlechin@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Datlechin\\References\\": "src/"
+        }
+    },
+    "extra": {
+        "flarum-extension": {
+            "title": "References",
+            "category": "feature",
+            "icon": {
+                "name": "fas fa-link",
+                "color": "#fff",
+                "backgroundColor": "#3d5674"
+            },
+            "optional-dependencies": [
+                "flarum-mentions",
+                "flarum-tags",
+                "flarum-subscriptions",
+                "flarum-gdpr"
+            ]
+        },
+        "flarum-cli": {
+            "modules": {
+                "admin": true,
+                "forum": true,
+                "js": true,
+                "jsCommon": true,
+                "css": true,
+                "locale": true,
+                "gitConf": true,
+                "githubActions": true,
+                "prettier": true,
+                "typescript": true,
+                "bundlewatch": false,
+                "frontendTesting": true,
+                "backendTesting": true,
+                "phpstan": true,
+                "editorConfig": true,
+                "styleci": true
+            }
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "autoload-dev": {
+        "psr-4": {
+            "Datlechin\\References\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": [
+            "@test:unit",
+            "@test:integration"
+        ],
+        "test:unit": "phpunit -c tests/phpunit.unit.xml",
+        "test:integration": "phpunit -c tests/phpunit.integration.xml",
+        "test:setup": "@php tests/integration/setup.php",
+        "analyse:phpstan": [
+            "@php tests/phpstan-setup.php",
+            "phpstan analyse"
+        ],
+        "clear-cache:phpstan": "phpstan clear-result-cache"
+    },
+    "scripts-descriptions": {
+        "test": "Runs all tests.",
+        "test:unit": "Runs all unit tests.",
+        "test:integration": "Runs all integration tests.",
+        "test:setup": "Sets up a database for use with integration tests. Execute this only once.",
+        "analyse:phpstan": "Run static analysis"
+    },
+    "require-dev": {
+        "flarum/testing": "^2.0",
+        "flarum/phpstan": "^2.0",
+        "flarum/mentions": "*",
+        "flarum/tags": "*",
+        "flarum/subscriptions": "*",
+        "laravel/pint": "^1.18",
+        "flarum/approval": "*",
+        "flarum/gdpr": "*"
+    }
+}

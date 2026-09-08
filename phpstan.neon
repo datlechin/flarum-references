@@ -1,0 +1,20 @@
+includes:
+  - vendor/flarum/phpstan/extension.neon
+
+parameters:
+  # Above the level 6 the skeleton ships. This extension resolves ids out of
+  # parsed XML and settings out of the database, so almost every value starts
+  # as `mixed`, and level 6 checks none of the calls made on those.
+  level: 9
+  paths:
+    - extend.php
+    - src
+  excludePaths:
+    - *.blade.php
+  databaseMigrationsPath: ['migrations']
+  ignoreErrors:
+    # A column this extension adds to a core table. A stub file would have to
+    # restate every property core already declares, and would go stale.
+    - '#Access to an undefined property Flarum\\Discussion\\Discussion::\$references_count#'
+    # Declared by HasFormattedContent as an accessor, not in Post's docblock.
+    - '#Access to an undefined property Flarum\\Post\\Post::\$parsed_content#'

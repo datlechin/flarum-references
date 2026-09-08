@@ -1,0 +1,118 @@
+// Two report panels under the settings form. The page chrome, the section
+// headers, the form and the empty states are core's; these are the figures.
+
+.ReferenceAnalytics-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.ReferenceAnalytics-total {
+  min-width: 120px;
+  padding: 4px 0;
+}
+
+.ReferenceAnalytics-totalLabel {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--muted-color);
+}
+
+.ReferenceAnalytics-totalValue {
+  margin-top: 6px;
+  font-size: 20px;
+  color: var(--text-color);
+}
+
+// One span per day the server returned, each carrying only its height as a
+// percentage of the busiest day. Core ships no chart to borrow from, so the
+// height is a judgement call kept from the first draft; `overflow-x` is what
+// makes an arbitrary date range safe rather than any assumption about its size.
+.ReferenceAnalytics-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 80px;
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+
+// The floor matters: a day well below the peak rounds to 0% and would draw
+// nothing at all.
+.ReferenceAnalytics-bar {
+  flex: 1 0 4px;
+  min-height: 2px;
+  background: var(--primary-color);
+}
+
+.ReferenceAnalytics-breakdowns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 30px;
+  margin-bottom: 20px;
+}
+
+// Without a minimum of 0 a flex item is as wide as its content, so a long name
+// would widen the column instead of letting the ellipsis below do its job.
+.ReferenceAnalytics-breakdown {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+// `.HeaderList-header h4`, which is core's label above a list.
+.ReferenceAnalytics-breakdownTitle {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--muted-color);
+}
+
+.ReferenceAnalytics-breakdownList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ReferenceAnalytics-breakdownRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+// A name comes from the data and can be any length; it truncates rather than
+// pushing the count out of the panel.
+.ReferenceAnalytics-breakdownName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ReferenceAnalytics-breakdownCount {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+// A report of every broken reference is wider than a phone. It scrolls inside
+// its own box rather than making the page scroll sideways.
+.BrokenReferences-tableContainer {
+  overflow-x: auto;
+}
+
+// `.Table()` is a parametric mixin, so Less emits no `.Table` class at all and
+// markup saying `class="Table"` gets a bare browser table on an otherwise
+// themed page. It has to be called into a selector of our own, which is what
+// `.NotificationGrid` does.
+.BrokenReferences-table {
+  .Table();
+  width: 100%;
+
+  // The mixin centres `thead th` and pads it for the wide users table. These
+  // are three prose columns, so the headings line up with their cells instead.
+  thead th {
+    text-align: start;
+    padding: 10px 15px;
+  }
+}
