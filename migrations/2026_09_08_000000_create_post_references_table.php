@@ -42,10 +42,14 @@ return Migration::createTable('post_references', function (Blueprint $table) {
     // `origin` is left out on purpose. A post that both mentions and links the
     // same target is one assertion, and a second row would make
     // `referencedByCount` read 2 for a single citing post.
-    $table->unique(['source_post_id', 'target_type', 'target_id'], 'post_references_identity_uq');
+    // Unnamed on purpose. Laravel applies the connection's table prefix only
+    // when it generates the name itself, and Postgres scopes an index to the
+    // schema rather than to its table, so a hardcoded name collides between two
+    // installs sharing one schema.
+    $table->unique(['source_post_id', 'target_type', 'target_id']);
 
-    $table->index(['target_type', 'target_id', 'id'], 'post_references_target_idx');
-    $table->index(['target_discussion_id', 'id'], 'post_references_target_discussion_idx');
-    $table->index('source_discussion_id', 'post_references_source_discussion_idx');
-    $table->index('target_deleted_at', 'post_references_broken_idx');
+    $table->index(['target_type', 'target_id', 'id']);
+    $table->index(['target_discussion_id', 'id']);
+    $table->index('source_discussion_id');
+    $table->index('target_deleted_at');
 });

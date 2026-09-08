@@ -76,6 +76,25 @@ class MarksAReferenceBrokenWhenItsTargetGoesTest extends TestCase
         $this->assertSame(0, $this->referencesCount(1));
     }
 
+    /**
+     * `Deleted` fires after the row is gone, and `source_post_id` cascades, so
+     * by then the database has already removed everything the counter would
+     * have been decremented from. SQLite hid this; MariaDB and Postgres do not.
+     */
+    #[Test]
+    public function deleting_the_citing_post_brings_the_counter_back_down(): void
+    {
+        $response = $this->reply(2, 'See '.$this->forum().'/d/1');
+        $postId = (int) json_decode((string) $response->getBody(), true)['data']['id'];
+
+        $this->assertSame(1, $this->referencesCount(1));
+
+        $this->send($this->request('DELETE', '/api/posts/'.$postId, ['authenticatedAs' => 1]));
+
+        $this->assertCount(0, $this->references());
+        $this->assertSame(0, $this->referencesCount(1));
+    }
+
     #[Test]
     public function deleting_the_citing_discussion_removes_its_rows(): void
     {

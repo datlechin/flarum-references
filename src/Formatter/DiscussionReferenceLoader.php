@@ -12,6 +12,7 @@
 namespace Datlechin\References\Formatter;
 
 use Flarum\Discussion\Discussion;
+use Flarum\User\User;
 use s9e\TextFormatter\Utils;
 
 /**
@@ -22,9 +23,15 @@ use s9e\TextFormatter\Utils;
 abstract class DiscussionReferenceLoader
 {
     /**
+     * The title is read from the database and shown to whoever is reading the
+     * post, so an unscoped lookup hands out the titles of discussions the
+     * reader cannot open, and a post full of made up ids reads them back in
+     * bulk. A null actor means there is nobody to scope to, which is the email
+     * and console case rather than a guest.
+     *
      * @return array<int, Discussion>|null null when the post has no references
      */
-    public static function load(string $xml): ?array
+    public static function load(string $xml, ?User $actor = null): ?array
     {
         if (! str_contains($xml, '<'.ConfigureDiscussionReferences::TAG_NAME)) {
             return null;
@@ -44,7 +51,13 @@ abstract class DiscussionReferenceLoader
 
         $discussions = [];
 
-        foreach (Discussion::query()->whereIn('id', array_unique($ids))->get() as $discussion) {
+        $query = Discussion::query()->whereIn('id', array_unique($ids));
+
+        if ($actor !== null) {
+            $query->whereVisibleTo($actor);
+        }
+
+        foreach ($query->get() as $discussion) {
             $discussions[(int) $discussion->id] = $discussion;
         }
 

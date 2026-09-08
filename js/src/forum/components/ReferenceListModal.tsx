@@ -45,7 +45,12 @@ export default class ReferenceListModal<CustomAttrs extends IReferenceListModalA
                 .getPages()
                 .flatMap((page) => page.items)
                 .map((reference) => (
-                  <ReferenceListItem key={reference.id()} reference={reference} onclick={() => app.modal.close()} />
+                  <ReferenceListItem
+                    key={reference.id()}
+                    reference={reference}
+                    outgoing={'sourceDiscussion' in this.attrs.filter}
+                    onclick={() => app.modal.close()}
+                  />
                 ))}
             </ul>
           )}

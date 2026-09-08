@@ -75,7 +75,14 @@ final class RelatedDiscussionsQuery
             ->whereNotIn('target_discussion_id', $direct)
             ->groupBy('target_discussion_id')
             ->orderByDesc($this->db->raw('count(distinct source_discussion_id)'))
-            ->limit($this->config->relatedDiscussionsLimit())
+            // Ranked wider than the list is drawn, because the visibility
+            // filter below subtracts from whatever comes back. Cutting to the
+            // limit first meant a reader who could not open the top entry got a
+            // short list rather than the next one down.
+            ->limit(min(
+                $this->config->relatedMaxCandidates(),
+                $this->config->relatedDiscussionsLimit() * 4
+            ))
             ->pluck('target_discussion_id');
 
         if ($weights->isEmpty()) {
@@ -96,6 +103,9 @@ final class RelatedDiscussionsQuery
             }
         }
 
-        return $discussions->sortBy(fn (Discussion $discussion) => $order[$discussion->id] ?? PHP_INT_MAX)->values();
+        return $discussions
+            ->sortBy(fn (Discussion $discussion) => $order[$discussion->id] ?? PHP_INT_MAX)
+            ->take($this->config->relatedDiscussionsLimit())
+            ->values();
     }
 }

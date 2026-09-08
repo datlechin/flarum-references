@@ -15,6 +15,7 @@ describe('cleanTitle', () => {
     ['the user shape is replaced too', 'Ask them"#42 about it', 'Ask them_ about it'],
     ['the post shape is replaced too', 'See this"#p7 for context', 'See this_ for context'],
     ['a hash with no digits is left alone', 'A title with "#hashtag in it', 'A title with "#hashtag in it'],
+    ['every occurrence goes, not just the first', 'Read this"#d1 and this"#d2', 'Read this_ and this_'],
   ];
 
   it.each(cases)('%s', (_name, title, expected) => {

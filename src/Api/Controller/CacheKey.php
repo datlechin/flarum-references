@@ -11,31 +11,15 @@
 
 namespace Datlechin\References\Api\Controller;
 
-use Flarum\Group\Group;
-use Flarum\User\User;
-
 /**
- * Cached widgets are keyed by the actor's groups, not by the actor. Visibility
- * follows from group membership, and a key per member would leave the cache
- * empty on any forum busy enough to need one.
+ * There used to be a `forActor()` here that keyed a cached payload by the
+ * actor's groups. Visibility does not follow from group membership: core grants
+ * a discussion to its own author whether or not anybody shares a group with
+ * them, so two readers hashing alike could be served each other's titles. What
+ * is cached now is only the part that is the same for everyone.
  */
 abstract class CacheKey
 {
-    public static function forActor(string $prefix, User $actor): string
-    {
-        $groups = [];
-
-        foreach ($actor->groups as $group) {
-            if ($group instanceof Group) {
-                $groups[] = (string) $group->id;
-            }
-        }
-
-        sort($groups);
-
-        return $prefix.'.'.md5(implode(',', $groups));
-    }
-
     public static function id(mixed $value): int
     {
         return is_numeric($value) ? (int) $value : 0;

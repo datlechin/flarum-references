@@ -33,9 +33,13 @@ final class ReferenceGraphQuery
     }
 
     /**
-     * @return array{nodes: list<array{id: int, title: string, count: int}>, edges: list<array{from: int, to: int}>}
+     * The walk itself, which is the expensive half and depends on nothing about
+     * the reader. Kept apart from the titles so it can be cached once for
+     * everybody rather than once per reader.
+     *
+     * @return array{ids: list<int>, edges: list<array{from: int, to: int}>}
      */
-    public function get(int $discussionId, User $actor): array
+    public function traverse(int $discussionId): array
     {
         $depth = $this->config->graphMaxDepth();
         $perHop = $this->config->graphMaxPerHop();
@@ -62,8 +66,24 @@ final class ReferenceGraphQuery
             $frontier = $next;
         }
 
+        return ['ids' => array_map('intval', array_keys($visited)), 'edges' => array_values($edges)];
+    }
+
+    /**
+     * Titles, and the edges between the ones this reader may open. Cheap, one
+     * query, and run on every request: which discussions a reader may see is
+     * not a function of the groups they belong to, because core also grants a
+     * discussion to its own author.
+     *
+     * @param array{ids: list<int>, edges: list<array{from: int, to: int}>} $graph
+     * @return array{nodes: list<array{id: int, title: string, count: int}>, edges: list<array{from: int, to: int}>}
+     */
+    public function visible(array $graph, User $actor): array
+    {
+        $edges = $graph['edges'];
+
         $discussions = Discussion::whereVisibleTo($actor)
-            ->whereIn('id', array_keys($visited))
+            ->whereIn('id', $graph['ids'])
             ->get(['id', 'title', 'references_count']);
 
         $nodes = [];

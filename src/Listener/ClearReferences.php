@@ -16,6 +16,7 @@ use Datlechin\References\Service\BrokenReferenceMarker;
 use Datlechin\References\Service\ReferenceNotifier;
 use Datlechin\References\Service\ReferenceSyncer;
 use Flarum\Post\Event\Deleted;
+use Flarum\Post\Event\Deleting;
 use Flarum\Post\Event\Hidden;
 
 final class ClearReferences
@@ -27,8 +28,18 @@ final class ClearReferences
     ) {
     }
 
-    public function handle(Hidden|Deleted $event): void
+    public function handle(Hidden|Deleting|Deleted $event): void
     {
+        // By `Deleted` the post row is gone, and `source_post_id` cascades, so
+        // the database has already removed every row the other two branches
+        // work from. All that is left to do is mark what pointed AT the post,
+        // which has no key to the post and so survives.
+        if ($event instanceof Deleted) {
+            $this->marker->markTarget(Reference::TARGET_POST, (int) $event->post->id);
+
+            return;
+        }
+
         $this->notifier->retractFor($event->post);
 
         // Hiding is reversible, so the rows stay: a reader cannot see them
@@ -36,9 +47,8 @@ final class ClearReferences
         // Deleting them and rebuilding on restore would throw away any
         // classification a moderator had put on them, which is the one thing
         // an edit is careful not to do.
-        if ($event instanceof Deleted) {
+        if ($event instanceof Deleting) {
             $this->syncer->clear($event->post);
-            $this->marker->markTarget(Reference::TARGET_POST, (int) $event->post->id);
         }
     }
 }

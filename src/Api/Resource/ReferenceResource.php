@@ -71,7 +71,10 @@ class ReferenceResource extends AbstractDatabaseResource
     {
         return [
             Endpoint\Index::make()
-                ->defaultInclude(['sourcePost', 'sourcePost.user', 'sourceDiscussion', 'target'])
+                // `targetDiscussion` as well as `target`: the outgoing list
+                // names the far end, and for a row targeting a post the target
+                // is that post, leaving no discussion in the store to name.
+                ->defaultInclude(['sourcePost', 'sourcePost.user', 'sourceDiscussion', 'targetDiscussion', 'target'])
                 ->eagerLoad(['sourcePost.discussion'])
                 ->defaultSort('-createdAt')
                 ->paginate(),

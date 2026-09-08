@@ -12,8 +12,10 @@
 namespace Datlechin\References\Formatter;
 
 use Flarum\Discussion\Discussion;
+use Flarum\Http\RequestUtil;
 use Flarum\Http\SlugManager;
 use Flarum\Locale\TranslatorInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use s9e\TextFormatter\Renderer;
 use s9e\TextFormatter\Utils;
 
@@ -29,9 +31,14 @@ final class FormatDiscussionReferences
     ) {
     }
 
-    public function __invoke(Renderer $renderer, mixed $context, string $xml): string
+    public function __invoke(Renderer $renderer, mixed $context, string $xml, ?ServerRequestInterface $request = null): string
     {
-        $discussions = DiscussionReferenceLoader::load($xml);
+        // Scoped to whoever is reading, so a discussion they cannot open falls
+        // into the branch below and reads as deleted rather than handing over
+        // its title. No request means no reader to scope to, which is mail and
+        // console rendering; scoping those to a guest would render every
+        // reference in a notification email as deleted.
+        $discussions = DiscussionReferenceLoader::load($xml, $request ? RequestUtil::getActor($request) : null);
 
         if ($discussions === null) {
             return $xml;

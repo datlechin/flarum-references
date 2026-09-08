@@ -42,10 +42,17 @@ final class ShowReferenceGraphController implements RequestHandlerInterface
         }
 
         $ttl = $this->config->cacheTtl();
-        $key = CacheKey::forActor('datlechin-references.graph.'.$id, $actor);
+        $key = 'datlechin-references.graph.'.$id;
 
-        $build = fn () => $this->graph->get($id, $actor);
+        // Only the walk is cached, and it is the same for everybody. Titles are
+        // fetched per request, because two readers in the same groups do not
+        // necessarily see the same discussions and the old per-group key served
+        // one reader's titles to the other.
+        $walk = fn () => $this->graph->traverse($id);
 
-        return new JsonResponse($ttl > 0 ? $this->cache->remember($key, $ttl, $build) : $build());
+        return new JsonResponse($this->graph->visible(
+            $ttl > 0 ? $this->cache->remember($key, $ttl, $walk) : $walk(),
+            $actor
+        ));
     }
 }

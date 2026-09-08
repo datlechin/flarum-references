@@ -1,7 +1,7 @@
 import bootstrapForum from '@flarum/jest-config/src/bootstrap/forum';
 import app from 'flarum/forum/app';
 
-import { filterDiscussionReferences } from '../../src/forum/utils/textFormatter';
+import { filterDiscussionReferences, postFilterDiscussionReferences } from '../../src/forum/utils/textFormatter';
 
 /**
  * The browser twin of `ConfigureDiscussionReferences::addDiscussionTitle()`.
@@ -12,12 +12,12 @@ import { filterDiscussionReferences } from '../../src/forum/utils/textFormatter'
  */
 
 function tag(attributes: Record<string, string>) {
-  const state = { ...attributes, invalidated: false };
+  const state: Record<string, unknown> = { ...attributes, invalidated: false };
 
   return {
     state,
-    getAttribute: (name: string) => state[name],
-    setAttribute: (name: string, value: string) => {
+    getAttribute: (name: string) => state[name] as string,
+    setAttribute: (name: string, value: string | boolean) => {
       state[name] = value;
     },
     invalidate: () => {
@@ -53,5 +53,20 @@ describe('filterDiscussionReferences', () => {
     expect(filterDiscussionReferences(subject)).toBe(true);
     expect(subject.state.title).toBe('Whatever was written');
     expect(subject.state.invalidated).toBe(false);
+  });
+});
+
+/**
+ * The template branches on `@deleted != 1`, and an absent attribute makes that
+ * test false, so a live reference previewed as deleted until the browser set
+ * this the way the server always has.
+ */
+describe('postFilterDiscussionReferences', () => {
+  it('marks a reference as not deleted, which the server does from the database', () => {
+    const t = tag({ id: '12' });
+
+    postFilterDiscussionReferences(t);
+
+    expect(t.state.deleted).toBe(false);
   });
 });

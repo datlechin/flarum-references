@@ -36,14 +36,29 @@ final class SyncReferences
         // becoming visible again, where there is nothing yet to remove.
         $created = $this->syncer->sync($event->post, deleteOrphans: $event instanceof Revised);
 
-        if ($created === []) {
-            return;
+        if ($created !== []) {
+            $this->eventPosts->write($created);
         }
 
-        $this->eventPosts->write($created);
+        // A post that becomes visible later wrote its rows back when it was
+        // posted, so nothing is created here and returning early on that left
+        // the two events below doing nothing at all: a restored post's alert
+        // stayed retracted, and a post held for approval announced itself while
+        // nobody could see it and then never again. Re-sending the whole set is
+        // safe because NotificationSyncer un-deletes a recipient's existing row
+        // rather than adding a second one.
+        $ids = $event instanceof Posted || $event instanceof Revised
+            ? array_map(fn (Reference $reference) => (int) $reference->id, $created)
+            : array_values(
+                Reference::query()
+                    ->where('source_post_id', $event->post->id)
+                    ->get(['id'])
+                    ->map(fn (Reference $reference) => (int) $reference->id)
+                    ->all()
+            );
 
-        $this->queue->push(new SendReferenceNotifications(
-            array_map(fn (Reference $reference) => $reference->id, $created),
-        ));
+        if ($ids !== []) {
+            $this->queue->push(new SendReferenceNotifications($ids));
+        }
     }
 }

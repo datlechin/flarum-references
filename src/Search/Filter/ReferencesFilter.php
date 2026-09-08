@@ -35,7 +35,10 @@ final class ReferencesFilter implements FilterInterface
     {
         $ids = array_map(intval(...), $this->asStringArray($value));
 
-        $sources = Reference::query()
+        // Scoped, because the extension's own rule is that a reference is
+        // visible only when both of its ends are. Unscoped, the filter answers
+        // questions about a discussion the reader cannot open.
+        $sources = Reference::whereVisibleTo($state->getActor())
             ->where('target_type', Reference::TARGET_DISCUSSION)
             ->whereIn('target_id', $ids)
             ->select('source_discussion_id');

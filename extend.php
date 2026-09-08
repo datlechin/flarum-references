@@ -22,6 +22,7 @@ use Flarum\Discussion\Event\Deleting as DiscussionDeleting;
 use Flarum\Discussion\Search\DiscussionSearcher;
 use Flarum\Extend;
 use Flarum\Post\Event\Deleted;
+use Flarum\Post\Event\Deleting;
 use Flarum\Post\Event\Hidden;
 use Flarum\Post\Event\Posted;
 use Flarum\Post\Event\Restored;
@@ -101,12 +102,32 @@ return [
         // Both directions, because the sidebar draws both. Without the outgoing
         // side the count arrived but the rows did not, and the section that
         // lists what this discussion points at never appeared.
+        //
+        // The source post matters as much as the discussion: a row without it
+        // links to the top of the citing discussion instead of to the citing
+        // post, and names that discussion's starter rather than whoever wrote
+        // the citation. `sourceDiscussion.user` covers the manual reference,
+        // where there is legitimately no source post to name.
+        //
+        // The first and last post are shipped by core as full post resources of
+        // their own, and an unincluded relationship carries no rows, so without
+        // the last two lines those two posts arrive with a backlink count and
+        // nothing to draw, and their footer silently disappears.
         ->endpoint(Endpoint\Show::class, fn (Endpoint\Show $endpoint) => $endpoint
             ->addDefaultInclude([
                 'referencedBy',
+                'referencedBy.sourcePost',
+                'referencedBy.sourcePost.user',
                 'referencedBy.sourceDiscussion',
+                'referencedBy.sourceDiscussion.user',
                 'outgoingReferences',
                 'outgoingReferences.targetDiscussion',
+                'firstPost.referencedBy',
+                'firstPost.referencedBy.sourcePost',
+                'firstPost.referencedBy.sourceDiscussion',
+                'lastPost.referencedBy',
+                'lastPost.referencedBy.sourcePost',
+                'lastPost.referencedBy.sourceDiscussion',
             ])),
 
     (new Extend\Formatter)
@@ -120,6 +141,10 @@ return [
         ->listen(Restored::class, Listener\SyncReferences::class)
         ->listen(PostWasApproved::class, Listener\SyncReferences::class)
         ->listen(Hidden::class, Listener\ClearReferences::class)
+        // Both: the rows have to be counted and their notifications retracted
+        // while they still exist, and what pointed at the post can only be
+        // marked broken once the delete has actually happened.
+        ->listen(Deleting::class, Listener\ClearReferences::class)
         ->listen(Deleted::class, Listener\ClearReferences::class)
         // Deleting a discussion tears its posts down with a database cascade
         // that fires no per post event, so every concern for that path lives

@@ -4,5 +4,5 @@
  * and mentions' own `getCleanDisplayName` for the same reason.
  */
 export default function cleanTitle(title: string): string {
-  return title.replace(/"#[a-z]{0,3}[0-9]+/, '_');
+  return title.replace(/"#[a-z]{0,3}[0-9]+/g, '_');
 }

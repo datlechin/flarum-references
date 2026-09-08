@@ -13,6 +13,7 @@ namespace Datlechin\References\Formatter;
 
 use Flarum\Discussion\Discussion;
 use Flarum\Http\UrlGenerator;
+use Flarum\User\User;
 use s9e\TextFormatter\Configurator;
 use s9e\TextFormatter\Configurator\Items\Attribute;
 use s9e\TextFormatter\Configurator\Items\ProgrammableCallback;
@@ -80,13 +81,32 @@ final class ConfigureDiscussionReferences
         /** @var ProgrammableCallback $filter */
         $filter = $tag->filterChain->prepend([static::class, 'addDiscussionTitle']);
         $filter->setJS('function(tag) { return flarum.extensions["datlechin-references"].filterDiscussionReferences(tag); }');
+        $filter->addParameterByName('actor');
+
+        // The browser has no database to read `deleted` from, so without this
+        // the attribute is absent in the composer preview, `@deleted != 1` is
+        // false against an empty node set, and every live reference previews in
+        // the deleted style. Appended rather than prepended: attribute
+        // filtering drops an attribute whose value is exactly false, so setting
+        // it any earlier would strip it again.
+        /** @var ProgrammableCallback $postFilter */
+        $postFilter = $tag->filterChain->append([static::class, 'dummyFilter']);
+        $postFilter->setJS('function(tag) { return flarum.extensions["datlechin-references"].postFilterDiscussionReferences(tag); }');
 
         $config->Preg->match(self::REGEX, self::TAG_NAME);
     }
 
-    public static function addDiscussionTitle(FormatterTag $tag): ?bool
+    public static function addDiscussionTitle(FormatterTag $tag, ?User $actor): ?bool
     {
-        $discussion = Discussion::query()->find($tag->getAttribute('id'));
+        $query = Discussion::query();
+
+        // An id the writer cannot see never becomes a tag, so the render side
+        // is not the only thing standing between a private title and a reader.
+        if ($actor !== null) {
+            $query->whereVisibleTo($actor);
+        }
+
+        $discussion = $query->find($tag->getAttribute('id'));
 
         if ($discussion instanceof Discussion) {
             $tag->setAttribute('title', $discussion->title);
@@ -98,5 +118,10 @@ final class ConfigureDiscussionReferences
         $tag->invalidate();
 
         return null;
+    }
+
+    public static function dummyFilter(): bool
+    {
+        return true;
     }
 }

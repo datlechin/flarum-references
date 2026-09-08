@@ -22,7 +22,7 @@ use Flarum\Post\CommentPost;
 use Flarum\Post\Post;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\QueryException;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 final class ReferenceSyncer
 {
@@ -135,13 +135,13 @@ final class ReferenceSyncer
 
         try {
             $row->save();
-        } catch (QueryException $e) {
+        } catch (UniqueConstraintViolationException) {
             // Only the unique key losing a race. Anything else is a real
-            // failure and swallowing it would drop a reference in silence.
-            if (($e->errorInfo[0] ?? null) !== '23000') {
-                throw $e;
-            }
-
+            // failure and is left to propagate. Matching on SQLSTATE by hand
+            // read `23000`, which is what MySQL and SQLite report but not
+            // Postgres, where the rethrow reached the caller and failed the
+            // post. It was also wider than intended on MySQL, where `23000`
+            // covers foreign key and NOT NULL failures too.
             return null;
         }
 

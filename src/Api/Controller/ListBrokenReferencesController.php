@@ -45,7 +45,11 @@ final class ListBrokenReferencesController implements RequestHandlerInterface
         $query = Reference::query()
             ->whereNotNull('target_deleted_at')
             ->with('sourceDiscussion', 'sourcePost')
-            ->orderByDesc('target_deleted_at');
+            // Every row a single marking pass touches carries the same
+            // second, so the timestamp alone leaves ties in an order the
+            // engine is free to change between one page and the next.
+            ->orderByDesc('target_deleted_at')
+            ->orderByDesc('id');
 
         $total = (clone $query)->count();
 

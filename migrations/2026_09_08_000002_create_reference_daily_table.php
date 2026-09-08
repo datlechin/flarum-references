@@ -18,5 +18,5 @@ return Migration::createTable('reference_daily', function (Blueprint $table) {
     $table->unsignedInteger('total')->default(0);
 
     $table->primary(['date', 'target_discussion_id']);
-    $table->index('date', 'reference_daily_date_idx');
+    $table->index('date');
 });
