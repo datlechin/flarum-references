@@ -1,0 +1,201 @@
+// The colours, type scale, headings and row shape here are all core's. Only the
+// blocks are ours, and each one says which core rule it borrows from.
+
+// The discussion sidebar is a horizontal strip of inline-block chips on a
+// phone, which a list of links is not, so these opt back into a block the way
+// core does for `.item-controls`. Both sections render nothing when they have
+// nothing to say, and an empty `li` would still carry core's 15px, so it goes
+// the way core hides an empty post footer.
+@media @phone {
+  .DiscussionPage-nav > ul > li.item-references,
+  .DiscussionPage-nav > ul > li.item-relatedDiscussions {
+    display: block;
+
+    &:empty {
+      display: none;
+    }
+  }
+}
+
+// `.UrlLink-postIcon` is core's own glyph inside an inline discussion link, at
+// this size and opacity. The link itself needs no rule: `.Post-body a` already
+// gives it the weight and underline every link in a post gets.
+.DiscussionReference-icon {
+  margin-inline-end: 5px;
+  font-size: 90%;
+  opacity: 0.8;
+}
+
+// A `span`, not an `a`, so nothing in core reaches it. The title has already
+// been replaced server side with the translated deleted text, so the colour is
+// the only thing left to say.
+.DiscussionReference--deleted {
+  color: var(--muted-color);
+}
+
+// `.HeaderList-header h4` is core's section label inside a list. The bottom
+// margin is ours: that heading sits in a flex header with its own padding,
+// these sit directly on a list whose margin is 0.
+.DiscussionReferences-title,
+.RelatedDiscussions-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--muted-color);
+}
+
+// Both directions render into one section each, and the second heading would
+// otherwise land flush on the last row of the first list.
+.DiscussionReferences-section + .DiscussionReferences-section {
+  margin-top: 10px;
+}
+
+.ReferenceList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ReferenceList-link {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+
+  &:hover,
+  &:focus {
+    // Every `a` is underlined on hover, which here would underline the icon
+    // too. The title carries it instead.
+    text-decoration: none;
+
+    .ReferenceList-title {
+      color: var(--link-color);
+      text-decoration: underline;
+    }
+  }
+}
+
+.ReferenceList-icon {
+  flex-shrink: 0;
+  font-size: 90%;
+  opacity: 0.8;
+}
+
+// `.DiscussionListItem-title` ellipsises because it has a row to itself. This
+// one wraps: the sidebar column is 180px, and a title cut at that width says
+// almost nothing.
+.ReferenceList-title {
+  min-width: 0;
+  line-height: 1.3;
+  color: var(--heading-color);
+  overflow-wrap: anywhere;
+}
+
+// `.DiscussionListItem-info` does this same job in core, at this size and
+// colour.
+.ReferenceList-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted-more-color);
+
+  .username {
+    font-weight: bold;
+  }
+}
+
+// A moderator's note about why two things belong together. It is prose, so it
+// takes the row it needs rather than sharing the metadata line.
+.ReferenceList-note {
+  flex-basis: 100%;
+  font-style: italic;
+}
+
+// The one piece of a reference that carries a judgement, so it is the one piece
+// that gets a chip. `.Pill` puts 6px of padding and a 20px line height on its
+// content, which would stand 32px tall in an 11px row, so only its tokens are
+// borrowed.
+.ReferenceList-relation {
+  padding: 0 6px;
+  border-radius: var(--border-radius);
+  background: var(--pill-bg);
+  color: var(--pill-color);
+  font-weight: 600;
+}
+
+// `.Modal-body` is painted `--control-bg`, which is what `--pill-bg` resolves
+// to, so the chip would vanish there. This is the pair core swaps in for a chip
+// on that surface.
+.Modal-body .ReferenceList-relation {
+  --pill-bg: var(--pill-bg-alt);
+  --pill-color: var(--pill-color-alt);
+}
+
+// Both are `Button--text`, which is already `padding: 0`, and the list above
+// them has no bottom margin of its own.
+.DiscussionReferences-more,
+.DiscussionReferences-graph {
+  margin-top: 10px;
+}
+
+// An `svg` inherits none of the page's colour: `fill` starts black and `stroke`
+// starts `none`, so every mark has to be painted or the graph draws as black
+// dots joined by nothing.
+.ReferenceGraph {
+  display: block;
+  max-width: 100%;
+  // Paired with the width the element carries, so a narrow screen shrinks the
+  // drawing instead of squashing it.
+  height: auto;
+  margin: 0 auto;
+}
+
+.ReferenceGraph-edge {
+  stroke: var(--muted-more-color);
+}
+
+// A marker paints from its own fill, not the line's stroke, so it has to be
+// told the same colour or it draws black.
+.ReferenceGraph-arrowHead {
+  fill: var(--muted-more-color);
+}
+
+.ReferenceGraph-node {
+  fill: var(--muted-color);
+}
+
+// The discussion being viewed is the one thing on the diagram that is current,
+// which is what core reserves the accent for.
+.ReferenceGraph-node--centre {
+  fill: var(--primary-color);
+}
+
+// `text` takes no colour from the page either. It sits under its node rather
+// than beside it: alongside, every edge ran through its own label and read as
+// a strikethrough.
+.ReferenceGraph-label {
+  font-size: 12px;
+  fill: var(--text-color);
+}
+
+.ReferenceGraph-label--centre {
+  font-weight: bold;
+}
+
+// An `a` inside an `svg` gets no cursor and no focus ring from the page.
+.ReferenceGraph-link {
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+  }
+
+  &:hover .ReferenceGraph-label {
+    text-decoration: underline;
+  }
+}
