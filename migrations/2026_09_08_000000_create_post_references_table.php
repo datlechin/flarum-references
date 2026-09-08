@@ -11,8 +11,9 @@
 
 use Flarum\Database\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Database\Schema\Builder;
 
-return Migration::createTable('post_references', function (Blueprint $table) {
+return Migration::createTable('post_references', function (Blueprint $table, Builder $schema) {
     $table->increments('id');
 
     $table->unsignedInteger('source_discussion_id');
@@ -42,14 +43,18 @@ return Migration::createTable('post_references', function (Blueprint $table) {
     // `origin` is left out on purpose. A post that both mentions and links the
     // same target is one assertion, and a second row would make
     // `referencedByCount` read 2 for a single citing post.
-    // Unnamed on purpose. Laravel applies the connection's table prefix only
-    // when it generates the name itself, and Postgres scopes an index to the
-    // schema rather than to its table, so a hardcoded name collides between two
-    // installs sharing one schema.
-    $table->unique(['source_post_id', 'target_type', 'target_id']);
+    // Named, but with the connection's prefix in front. Postgres scopes an
+    // index to the schema rather than to its table, so a bare name collides
+    // between two installs sharing one schema. Letting Laravel generate the
+    // name applies the prefix on its own, but spells out every column: with a
+    // prefix in front, the unique key came to 68 characters and MySQL rejects
+    // an identifier past 64.
+    $prefix = $schema->getConnection()->getTablePrefix();
 
-    $table->index(['target_type', 'target_id', 'id']);
-    $table->index(['target_discussion_id', 'id']);
-    $table->index('source_discussion_id');
-    $table->index('target_deleted_at');
+    $table->unique(['source_post_id', 'target_type', 'target_id'], $prefix.'post_refs_identity_uq');
+
+    $table->index(['target_type', 'target_id', 'id'], $prefix.'post_refs_target_idx');
+    $table->index(['target_discussion_id', 'id'], $prefix.'post_refs_target_disc_idx');
+    $table->index('source_discussion_id', $prefix.'post_refs_source_disc_idx');
+    $table->index('target_deleted_at', $prefix.'post_refs_broken_idx');
 });

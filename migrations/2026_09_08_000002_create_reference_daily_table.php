@@ -11,12 +11,15 @@
 
 use Flarum\Database\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Database\Schema\Builder;
 
-return Migration::createTable('reference_daily', function (Blueprint $table) {
+return Migration::createTable('reference_daily', function (Blueprint $table, Builder $schema) {
     $table->date('date');
     $table->unsignedInteger('target_discussion_id');
     $table->unsignedInteger('total')->default(0);
 
     $table->primary(['date', 'target_discussion_id']);
-    $table->index('date');
+    // Prefixed for the same reason as the references table: Postgres scopes an
+    // index name to the schema, not to its table.
+    $table->index('date', $schema->getConnection()->getTablePrefix().'ref_daily_date_idx');
 });
