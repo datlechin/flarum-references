@@ -111,5 +111,6 @@ One `ReferenceTarget` covers URL extraction, the manual picker, the polymorphic 
 
 ## Links
 
+- [Discuss](https://discuss.flarum.org/d/39830-references)
 - [Packagist](https://packagist.org/packages/datlechin/flarum-references)
 - [Issues](https://github.com/datlechin/flarum-references/issues)

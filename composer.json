@@ -13,7 +13,8 @@
     "license": "MIT",
     "support": {
         "issues": "https://github.com/datlechin/flarum-references/issues",
-        "source": "https://github.com/datlechin/flarum-references"
+        "source": "https://github.com/datlechin/flarum-references",
+        "forum": "https://discuss.flarum.org/d/39830-references"
     },
     "homepage": "https://nqd.vn",
     "funding": [
