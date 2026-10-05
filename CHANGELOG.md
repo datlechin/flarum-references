@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
 
 Run `php flarum migrate` after updating. The migration removes references recorded within a single discussion and recalculates the reference counts.
 
