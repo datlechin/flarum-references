@@ -17,7 +17,8 @@ use Datlechin\References\ReferenceOrigin;
 use Datlechin\References\RelationType;
 use Datlechin\References\Target\TargetRegistry;
 use Flarum\Api\Context;
-use Flarum\Http\Exception\InvalidParameterException;
+use Flarum\Foundation\ValidationException;
+use Flarum\Locale\TranslatorInterface;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -29,6 +30,7 @@ final class ManualReferenceCreator
 {
     public function __construct(
         private TargetRegistry $targets,
+        private TranslatorInterface $translator,
     ) {
     }
 
@@ -44,21 +46,32 @@ final class ManualReferenceCreator
         return $reference;
     }
 
+    /**
+     * Refusals are validation errors on `targetId`, so the modal puts the
+     * reason beside the field instead of failing with a bare 400.
+     */
     public function prepare(Reference $reference, Context $context): void
     {
-        $target = $this->targets->get($reference->target_type);
-
-        if ($target === null) {
-            throw new InvalidParameterException;
+        if ($reference->source_discussion_id === null) {
+            throw new ValidationException([], [
+                'sourceDiscussion' => $this->translator->trans('datlechin-references.api.manual.source_required_message'),
+            ]);
         }
 
-        $model = $target->query($context->getActor())->find($reference->target_id);
+        $target = $this->targets->get((string) $reference->target_type);
+        $model = $target?->query($context->getActor())->find($reference->target_id);
 
-        if (! $model instanceof Model) {
-            throw new InvalidParameterException;
+        if ($target === null || ! $model instanceof Model) {
+            $this->refuse('not_found');
         }
 
         $reference->target_discussion_id = $target->discussionIdFor($model);
+
+        // A discussion pointing at itself, or at a post inside itself, says
+        // nothing anybody can use, and every list would have to hide it.
+        if ($reference->target_discussion_id !== null && $reference->target_discussion_id === $reference->source_discussion_id) {
+            $this->refuse('same_discussion');
+        }
 
         $duplicate = Reference::query()
             ->whereNull('source_post_id')
@@ -68,7 +81,14 @@ final class ManualReferenceCreator
             ->exists();
 
         if ($duplicate) {
-            throw new InvalidParameterException;
+            $this->refuse('duplicate');
         }
+    }
+
+    private function refuse(string $reason): never
+    {
+        throw new ValidationException([
+            'targetId' => $this->translator->trans('datlechin-references.api.manual.'.$reason.'_message'),
+        ]);
     }
 }

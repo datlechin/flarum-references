@@ -14,7 +14,6 @@ namespace Datlechin\References\Extraction;
 use Datlechin\References\ReferenceOrigin;
 use Datlechin\References\Settings\Config;
 use Datlechin\References\Target\TargetRegistry;
-use s9e\TextFormatter\Utils;
 
 final class UrlReferenceExtractor implements ExtractorInterface
 {
@@ -30,15 +29,17 @@ final class UrlReferenceExtractor implements ExtractorInterface
         return ReferenceOrigin::Url;
     }
 
-    public function extract(string $parsedXml): array
+    public function extract(ParsedContent $content): array
     {
-        if (! $this->config->extractUrlReferences() || ! str_contains($parsedXml, '<URL')) {
+        if (! $this->config->extractUrlReferences()) {
             return [];
         }
 
         $found = [];
 
-        foreach (Utils::getAttributeValues($parsedXml, 'URL', 'url') as $url) {
+        // A link inside a quote is the quoted author's citation, recorded
+        // already against their own post.
+        foreach ($content->attributeValues('URL', 'url') as $url) {
             $path = $this->forumUrl->path($url);
 
             if ($path === null || $path === '') {

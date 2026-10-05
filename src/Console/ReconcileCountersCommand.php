@@ -11,13 +11,14 @@
 
 namespace Datlechin\References\Console;
 
+use Datlechin\References\Service\ReferenceCounter;
 use Illuminate\Console\Command;
 use Illuminate\Database\ConnectionInterface;
 
 /**
- * A denormalised counter drifts under concurrent writes, erasure requests and
- * hand edits. That is a when, not an if, which is why this runs daily rather
- * than after the first complaint.
+ * Every change recounts the discussions it touched, so this has little to do.
+ * It is still run daily, because rows also change in ways no event reports:
+ * a hand edit, a restore from backup, a post moved by another extension.
  */
 final class ReconcileCountersCommand extends Command
 {
@@ -27,6 +28,7 @@ final class ReconcileCountersCommand extends Command
 
     public function __construct(
         private ConnectionInterface $db,
+        private ReferenceCounter $counter,
     ) {
         parent::__construct();
     }
@@ -35,15 +37,7 @@ final class ReconcileCountersCommand extends Command
     {
         $chunkSize = max(1, (int) $this->option('chunk'));
 
-        // Aliased because `pluck()` reads the column back by the name it was
-        // given, and an un-aliased `count(*)` is called `count(*)` on MySQL and
-        // `count` on Postgres. Without the alias this silently plucks nulls and
-        // zeroes every counter it was meant to repair.
-        $truth = $this->db->table('post_references')
-            ->whereNotNull('target_discussion_id')
-            ->whereNull('target_deleted_at')
-            ->groupBy('target_discussion_id')
-            ->pluck($this->db->raw('count(*) as total'), 'target_discussion_id');
+        $truth = $this->counter->count();
 
         $corrected = 0;
 
@@ -52,8 +46,7 @@ final class ReconcileCountersCommand extends Command
             ->orderBy('id')
             ->chunkById($chunkSize, function ($discussions) use ($truth, &$corrected) {
                 foreach ($discussions as $discussion) {
-                    $counted = $truth[$discussion->id] ?? 0;
-                    $actual = is_numeric($counted) ? (int) $counted : 0;
+                    $actual = $truth[(int) $discussion->id] ?? 0;
                     $stored = is_numeric($discussion->references_count) ? (int) $discussion->references_count : 0;
 
                     if ($stored === $actual) {

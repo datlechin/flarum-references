@@ -43,11 +43,15 @@ final class DiscussionTarget implements ReferenceTarget
         return Discussion::whereVisibleTo($actor);
     }
 
+    /**
+     * Any address inside the discussion, including `/d/12/34`. The post target
+     * is asked first and claims that one when post 34 exists; when it does
+     * not, or names an event rather than a comment, the link still lands in
+     * this discussion, because that is where core sends the reader.
+     */
     public function matchUrl(string $path): ?int
     {
-        // No trailing segment, so `/d/12/34` belongs to the post target and
-        // the two never race.
-        return preg_match('~^/d/(\d+)(?:-[^/]*)?$~', $path, $matches) === 1
+        return preg_match('~^/d/(\d+)(?:-[^/]*)?(?:/[^/]*)?$~', $path, $matches) === 1
             ? (int) $matches[1]
             : null;
     }

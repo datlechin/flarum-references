@@ -11,59 +11,82 @@
 
 namespace Datlechin\References\Api;
 
+use Closure;
 use Datlechin\References\Api\Resource\ReferenceResource;
+use Datlechin\References\Service\DiscussionReferenceQuery;
 use Datlechin\References\Settings\Config;
 use Flarum\Api\Context;
+use Flarum\Api\Resource\DiscussionResource;
 use Flarum\Api\Schema;
 use Flarum\Discussion\Discussion;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * The sidebar of one discussion, and nothing on the list.
+ *
+ * Every field here is served by the discussion's own page only. Two
+ * visibility scoped counts over the reference table on every discussion in
+ * every list page cost the busiest endpoint on the forum for numbers nothing
+ * on the list ever drew.
+ */
 final class DiscussionResourceFields
 {
     public function __construct(
         private Config $config,
+        private DiscussionReferenceQuery $references,
     ) {
     }
 
     public function __invoke(): array
     {
         return [
-            // Both counts repeat the visibility constraint on purpose: an
-            // aggregate runs through EloquentBuffer::loadAggregate(), which
-            // skips the resource's own scope().
+            // Distinct discussions, matching the list beneath the count.
             Schema\Integer::make('referencedByCount')
-                ->countRelation('referencedBy', function (Builder $query, Context $context) {
-                    $query->whereVisibleTo($context->getActor());
-                }),
+                ->visible(self::onShow())
+                ->get(fn (Discussion $discussion, Context $context) => $this->references->incomingCount((int) $discussion->id, $context->getActor())),
 
-            // Named after the relation, not shortened to `referencesCount`:
-            // an aggregate is read back by the snake_case of the FIELD name,
-            // and `references_count` is a real column on this table, so the
-            // shorter name silently returns the ranking counter instead.
             Schema\Integer::make('outgoingReferencesCount')
-                ->countRelation('outgoingReferences', function (Builder $query, Context $context) {
-                    $query->whereVisibleTo($context->getActor());
-                }),
+                ->visible(self::onShow())
+                ->get(fn (Discussion $discussion, Context $context) => $this->references->outgoingCount((int) $discussion->id, $context->getActor())),
 
             Schema\Relationship\ToMany::make('referencedBy')
                 ->type('post-references')
                 ->includable()
-                ->scope(fn (HasMany $query) => $query
-                    ->with('sourcePost.user', 'sourceDiscussion')
-                    ->latest('id')
-                    ->limit($this->config->maxPreview())),
+                ->visible(self::onShow())
+                ->get(fn (Discussion $discussion, Context $context) => $this->references
+                    ->incoming((int) $discussion->id, $context->getActor())
+                    ->with('sourcePost.user', 'sourceDiscussion.user')
+                    ->orderByDesc('post_references.id')
+                    ->limit($this->config->maxPreview())
+                    ->get()
+                    ->all()),
 
             Schema\Relationship\ToMany::make('outgoingReferences')
                 ->type('post-references')
                 ->includable()
-                ->scope(fn (HasMany $query) => $query
+                ->visible(self::onShow())
+                ->get(fn (Discussion $discussion, Context $context) => $this->references
+                    ->outgoing((int) $discussion->id, $context->getActor())
                     ->with('targetDiscussion')
-                    ->latest('id')
-                    ->limit($this->config->maxPreview())),
+                    ->orderByDesc('post_references.id')
+                    ->limit($this->config->maxPreview())
+                    ->get()
+                    ->all()),
 
             Schema\Boolean::make('canManageReferences')
                 ->get(fn (Discussion $discussion, Context $context) => $context->getActor()->hasPermission(ReferenceResource::PERMISSION)),
         ];
+    }
+
+    /**
+     * Called with the model and the context while serialising, and with the
+     * context alone while the request's includes are checked.
+     */
+    private static function onShow(): Closure
+    {
+        return function (mixed ...$arguments): bool {
+            $context = end($arguments);
+
+            return $context instanceof Context && $context->showing(DiscussionResource::class);
+        };
     }
 }

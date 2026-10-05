@@ -19,6 +19,8 @@ use Flarum\Api\Sort;
 use Flarum\Approval\Event\PostWasApproved;
 use Flarum\Discussion\Discussion;
 use Flarum\Discussion\Event\Deleting as DiscussionDeleting;
+use Flarum\Discussion\Event\Hidden as DiscussionHidden;
+use Flarum\Discussion\Event\Restored as DiscussionRestored;
 use Flarum\Discussion\Search\DiscussionSearcher;
 use Flarum\Extend;
 use Flarum\Post\Event\Deleted;
@@ -93,15 +95,19 @@ return [
     (new Extend\ApiResource(Resource\PostResource::class))
         ->fields(Api\PostResourceFields::class)
         ->endpoint([Endpoint\Index::class, Endpoint\Show::class], fn (Endpoint\Index|Endpoint\Show $endpoint) => $endpoint
-            ->addDefaultInclude(['referencedBy', 'referencedBy.sourcePost', 'referencedBy.sourceDiscussion'])),
+            ->addDefaultInclude([
+                'referencedBy', 'referencedBy.sourcePost', 'referencedBy.sourceDiscussion',
+                'referenceSources', 'referenceSources.discussion',
+            ])),
 
     (new Extend\ApiResource(Resource\DiscussionResource::class))
         ->fields(Api\DiscussionResourceFields::class)
         // The ranking column, offered where a reader already reorders the list.
         ->sorts(fn () => [Sort\SortColumn::make('referencesCount')])
-        // Both directions, because the sidebar draws both. Without the outgoing
-        // side the count arrived but the rows did not, and the section that
-        // lists what this discussion points at never appeared.
+        // Both directions, because the sidebar draws both, one row per other
+        // discussion. Without the outgoing side the count arrived but the rows
+        // did not, and the section that lists what this discussion points at
+        // never appeared.
         //
         // The source post matters as much as the discussion: a row without it
         // links to the top of the citing discussion instead of to the citing
@@ -141,6 +147,8 @@ return [
         ->listen(Restored::class, Listener\SyncReferences::class)
         ->listen(PostWasApproved::class, Listener\SyncReferences::class)
         ->listen(Hidden::class, Listener\ClearReferences::class)
+        ->listen(DiscussionHidden::class, Listener\UpdateOnDiscussionVisibility::class)
+        ->listen(DiscussionRestored::class, Listener\UpdateOnDiscussionVisibility::class)
         // Both: the rows have to be counted and their notifications retracted
         // while they still exist, and what pointed at the post can only be
         // marked broken once the delete has actually happened.
@@ -153,7 +161,8 @@ return [
 
     (new Extend\Notification())
         ->type(Notification\DiscussionReferencedBlueprint::class, ['alert'])
-        ->type(Notification\PostReferencedBlueprint::class, ['alert']),
+        ->type(Notification\PostReferencedBlueprint::class, ['alert'])
+        ->type(Notification\FollowedDiscussionReferencedBlueprint::class, ['alert']),
 
     (new Extend\Post)
         ->type(ReferencedEventPost::class),
@@ -163,6 +172,8 @@ return [
         ->addFilter(Search\ReferenceSearcher::class, Search\Filter\TargetFilter::class)
         ->addFilter(Search\ReferenceSearcher::class, Search\Filter\TargetDiscussionFilter::class)
         ->addFilter(Search\ReferenceSearcher::class, Search\Filter\SourceDiscussionFilter::class)
+        ->addFilter(Search\ReferenceSearcher::class, Search\Filter\IncomingFilter::class)
+        ->addFilter(Search\ReferenceSearcher::class, Search\Filter\OutgoingFilter::class)
         ->addFilter(DiscussionSearcher::class, Search\Filter\ReferencesFilter::class)
         ->addFilter(DiscussionSearcher::class, Search\Filter\ReferencedByFilter::class)
         ->addFilter(DiscussionSearcher::class, Search\Filter\HasReferencesFilter::class),

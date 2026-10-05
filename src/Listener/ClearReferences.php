@@ -13,6 +13,7 @@ namespace Datlechin\References\Listener;
 
 use Datlechin\References\Reference;
 use Datlechin\References\Service\BrokenReferenceMarker;
+use Datlechin\References\Service\ReferenceCounter;
 use Datlechin\References\Service\ReferenceNotifier;
 use Datlechin\References\Service\ReferenceSyncer;
 use Flarum\Post\Event\Deleted;
@@ -25,6 +26,7 @@ final class ClearReferences
         private ReferenceSyncer $syncer,
         private ReferenceNotifier $notifier,
         private BrokenReferenceMarker $marker,
+        private ReferenceCounter $counter,
     ) {
     }
 
@@ -42,13 +44,20 @@ final class ClearReferences
 
         $this->notifier->retractFor($event->post);
 
+        if ($event instanceof Deleting) {
+            $this->syncer->clear($event->post);
+
+            return;
+        }
+
         // Hiding is reversible, so the rows stay: a reader cannot see them
         // either way, because a reference is only as visible as its two ends.
         // Deleting them and rebuilding on restore would throw away any
         // classification a moderator had put on them, which is the one thing
-        // an edit is careful not to do.
-        if ($event instanceof Deleting) {
-            $this->syncer->clear($event->post);
-        }
+        // an edit is careful not to do. The ranking only counts what a guest
+        // could read, so it moves.
+        $this->counter->refresh(
+            Reference::query()->where('source_post_id', $event->post->id)->pluck('target_discussion_id')
+        );
     }
 }

@@ -57,6 +57,7 @@ final class PostTarget implements ReferenceTarget
         $id = Post::query()
             ->where('discussion_id', (int) $matches[1])
             ->where('number', (int) $matches[2])
+            ->where('type', 'comment')
             ->value('id');
 
         return is_int($id) ? $id : null;
