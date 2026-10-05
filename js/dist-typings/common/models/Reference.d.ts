@@ -9,6 +9,8 @@ export default class Reference extends Model {
     targetType(): string;
     targetId(): number;
     broken(): boolean;
+    canEdit(): boolean;
+    canDelete(): boolean;
     createdAt(): Date | undefined;
     sourcePost(): false | Post | null;
     sourceDiscussion(): false | Discussion;

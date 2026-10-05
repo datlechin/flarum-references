@@ -28,6 +28,18 @@ export default class ReferenceGraph<CustomAttrs extends IReferenceGraphAttrs = I
     failure(): Mithril.Children;
     content(graph: Graph): Mithril.Children;
     /**
+     * Stopped short of both nodes so the arrow head sits against the node
+     * rather than under it. Two nodes in the same column are joined by a curve
+     * that bows inwards, away from the labels.
+     */
+    /**
+     * Labels sit on the outer side of their node, away from the centre, so the
+     * lines, which all run inwards, do not cross them. The centre's label sits
+     * below it.
+     */
+    private labelPosition;
+    private edgePath;
+    /**
      * Core only routes links it can recognise by class, and an anchor inside an
      * `svg` is not one of them, so this would otherwise reload the whole page and
      * leave the modal behind. A modified click is left to the browser, which is
