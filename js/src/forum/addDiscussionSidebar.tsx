@@ -4,7 +4,7 @@ import DiscussionPage from 'flarum/forum/components/DiscussionPage';
 import ItemList from 'flarum/common/utils/ItemList';
 import type Mithril from 'mithril';
 
-import DiscussionReferences from './components/DiscussionReferences';
+import DiscussionLinks from './components/DiscussionLinks';
 import RelatedDiscussions from './components/RelatedDiscussions';
 
 export default function addDiscussionSidebar() {
@@ -13,7 +13,7 @@ export default function addDiscussionSidebar() {
 
     if (!discussion) return;
 
-    items.add('references', <DiscussionReferences discussion={discussion} />, -10);
+    items.add('references', <DiscussionLinks discussion={discussion} />, -10);
 
     if (app.forum.attribute<boolean>('datlechin-references.relatedDiscussionsEnabled')) {
       items.add('relatedDiscussions', <RelatedDiscussions discussionId={String(discussion.id())} />, -20);

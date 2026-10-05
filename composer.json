@@ -1,6 +1,6 @@
 {
     "name": "datlechin/flarum-references",
-    "description": "Records which posts point at which discussions, and shows it at the other end.",
+    "description": "Track links between discussions and show where each discussion is referenced.",
     "keywords": [
         "flarum",
         "references",
@@ -112,6 +112,7 @@
         "flarum/subscriptions": "*",
         "laravel/pint": "^1.18",
         "flarum/approval": "*",
-        "flarum/gdpr": "*"
+        "flarum/gdpr": "*",
+        "flarum/markdown": "*"
     }
 }

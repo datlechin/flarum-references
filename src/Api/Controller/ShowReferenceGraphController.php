@@ -42,7 +42,8 @@ final class ShowReferenceGraphController implements RequestHandlerInterface
         }
 
         $ttl = $this->config->cacheTtl();
-        $key = 'datlechin-references.graph.'.$id;
+        // Versioned: the walk's shape changed when edges became one per pair.
+        $key = 'datlechin-references.graph.v2.'.$id;
 
         // Only the walk is cached, and it is the same for everybody. Titles are
         // fetched per request, because two readers in the same groups do not
@@ -52,7 +53,8 @@ final class ShowReferenceGraphController implements RequestHandlerInterface
 
         return new JsonResponse($this->graph->visible(
             $ttl > 0 ? $this->cache->remember($key, $ttl, $walk) : $walk(),
-            $actor
+            $actor,
+            $id,
         ));
     }
 }

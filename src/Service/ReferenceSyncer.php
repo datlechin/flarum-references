@@ -14,6 +14,7 @@ namespace Datlechin\References\Service;
 use Carbon\Carbon;
 use Datlechin\References\Extraction\ExtractedReference;
 use Datlechin\References\Extraction\ExtractorInterface;
+use Datlechin\References\Extraction\ParsedContent;
 use Datlechin\References\Reference;
 use Datlechin\References\RelationType;
 use Datlechin\References\Settings\Config;
@@ -38,45 +39,36 @@ final class ReferenceSyncer
     }
 
     /**
+     * @param bool $refreshCounters false when the caller recounts everything
+     *                              itself afterwards, as the backfill does
      * @return list<Reference> rows created by this pass
      */
-    public function sync(Post $post, bool $deleteOrphans = true): array
+    public function sync(Post $post, bool $deleteOrphans = true, bool $refreshCounters = true): array
     {
         if (! $this->config->enabled() || ! $post instanceof CommentPost) {
             return [];
         }
 
-        $extracted = $this->extract($post);
-        $hostDiscussions = $this->hostDiscussions($extracted);
+        $extracted = $this->resolve($post, $this->extract($post));
 
         $created = [];
-        $increments = [];
 
-        foreach ($extracted as $key => $reference) {
-            // A target that does not resolve is a link to something that was
-            // never there. Nothing to record, and nothing to report as broken
-            // either: the report is about things that went away.
-            if (! array_key_exists($key, $hostDiscussions)) {
-                continue;
-            }
+        foreach ($extracted as [$reference, $targetDiscussionId]) {
+            $row = $this->create($post, $reference, $targetDiscussionId);
 
-            $row = $this->create($post, $reference, $hostDiscussions[$key]);
-
-            if ($row === null) {
-                continue;
-            }
-
-            $created[] = $row;
-
-            if ($row->target_discussion_id !== null) {
-                $increments[$row->target_discussion_id] = ($increments[$row->target_discussion_id] ?? 0) + 1;
+            if ($row !== null) {
+                $created[] = $row;
             }
         }
 
-        $this->counter->apply($increments);
+        $touched = array_map(fn (Reference $row) => $row->target_discussion_id, $created);
 
         if ($deleteOrphans) {
-            $this->delete($this->orphans($post, array_keys($extracted)));
+            $touched = [...$touched, ...$this->delete($this->orphans($post, array_keys($extracted)))];
+        }
+
+        if ($refreshCounters) {
+            $this->counter->refresh($touched);
         }
 
         return $created;
@@ -84,7 +76,7 @@ final class ReferenceSyncer
 
     public function clear(Post $post): void
     {
-        $this->delete(Reference::query()->where('source_post_id', $post->id));
+        $this->counter->refresh($this->delete(Reference::query()->where('source_post_id', $post->id)));
     }
 
     /**
@@ -98,10 +90,11 @@ final class ReferenceSyncer
             return [];
         }
 
+        $content = new ParsedContent($xml);
         $extracted = [];
 
         foreach ($this->extractors as $extractor) {
-            foreach ($extractor->extract($xml) as $reference) {
+            foreach ($extractor->extract($content) as $reference) {
                 // First extractor to find a target owns the row's origin. A
                 // post that both mentions and links the same target is one
                 // assertion, not two.
@@ -110,6 +103,59 @@ final class ReferenceSyncer
         }
 
         return $extracted;
+    }
+
+    /**
+     * Each target that exists and lives somewhere other than the post's own
+     * discussion, with the discussion it does live in.
+     *
+     * A link to something that was never there has nothing to record, and
+     * nothing to report as broken either: the report is about things that
+     * went away. A link back into the same discussion is the discussion
+     * talking to itself. A reply is a post mention of the post above it, and
+     * recording those put every reply in the reference list.
+     *
+     * @param array<string, ExtractedReference> $extracted
+     * @return array<string, array{ExtractedReference, int|null}>
+     */
+    private function resolve(Post $post, array $extracted): array
+    {
+        $idsByType = [];
+
+        foreach ($extracted as $reference) {
+            $idsByType[$reference->targetType][] = $reference->targetId;
+        }
+
+        $resolved = [];
+
+        foreach ($idsByType as $type => $ids) {
+            $target = $this->targets->get($type);
+
+            if ($target === null) {
+                continue;
+            }
+
+            /** @var class-string<Model> $modelClass */
+            $modelClass = $target->modelClass();
+
+            foreach ($modelClass::query()->whereIn('id', $ids)->get() as $model) {
+                $key = $model->getKey();
+
+                if (! is_int($key) && ! is_string($key)) {
+                    continue;
+                }
+
+                $discussionId = $target->discussionIdFor($model);
+
+                if ($discussionId !== null && $discussionId === (int) $post->discussion_id) {
+                    continue;
+                }
+
+                $resolved[$type.':'.$key] = [$extracted[$type.':'.$key], $discussionId];
+            }
+        }
+
+        return $resolved;
     }
 
     private function create(Post $post, ExtractedReference $reference, ?int $targetDiscussionId): ?Reference
@@ -137,11 +183,7 @@ final class ReferenceSyncer
             $row->save();
         } catch (UniqueConstraintViolationException) {
             // Only the unique key losing a race. Anything else is a real
-            // failure and is left to propagate. Matching on SQLSTATE by hand
-            // read `23000`, which is what MySQL and SQLite report but not
-            // Postgres, where the rethrow reached the caller and failed the
-            // post. It was also wider than intended on MySQL, where `23000`
-            // covers foreign key and NOT NULL failures too.
+            // failure and is left to propagate.
             return null;
         }
 
@@ -149,42 +191,9 @@ final class ReferenceSyncer
     }
 
     /**
-     * @param array<string, ExtractedReference> $extracted
-     * @return array<string, int|null> keyed as $extracted is
-     */
-    private function hostDiscussions(array $extracted): array
-    {
-        $idsByType = [];
-
-        foreach ($extracted as $reference) {
-            $idsByType[$reference->targetType][] = $reference->targetId;
-        }
-
-        $resolved = [];
-
-        foreach ($idsByType as $type => $ids) {
-            $target = $this->targets->get($type);
-
-            if ($target === null) {
-                continue;
-            }
-
-            /** @var class-string<Model> $modelClass */
-            $modelClass = $target->modelClass();
-
-            foreach ($modelClass::query()->whereIn('id', $ids)->get() as $model) {
-                $key = $model->getKey();
-
-                if (is_int($key) || is_string($key)) {
-                    $resolved[$type.':'.$key] = $target->discussionIdFor($model);
-                }
-            }
-        }
-
-        return $resolved;
-    }
-
-    /**
+     * What this post no longer points at, and what it points at inside its own
+     * discussion, which an earlier version of this extension recorded.
+     *
      * @param list<string> $keep
      * @return Builder<Reference>
      */
@@ -210,27 +219,18 @@ final class ReferenceSyncer
 
     /**
      * @param Builder<Reference> $query
+     * @return list<int|null> the discussions whose counter the delete moved
      */
-    private function delete(Builder $query): void
+    private function delete(Builder $query): array
     {
-        $decrements = [];
-        $ids = [];
+        $rows = $query->get(['id', 'target_discussion_id']);
 
-        foreach ($query->get(['id', 'target_discussion_id', 'target_deleted_at']) as $row) {
-            $ids[] = $row->id;
-
-            // A broken row already left the counter when it was marked.
-            if ($row->target_discussion_id !== null && ! $row->isBroken()) {
-                $decrements[$row->target_discussion_id] = ($decrements[$row->target_discussion_id] ?? 0) - 1;
-            }
+        if ($rows->isEmpty()) {
+            return [];
         }
 
-        if ($ids === []) {
-            return;
-        }
+        Reference::query()->whereIn('id', $rows->pluck('id')->all())->delete();
 
-        Reference::query()->whereIn('id', $ids)->delete();
-
-        $this->counter->apply($decrements);
+        return array_values($rows->map(fn (Reference $row) => $row->target_discussion_id)->all());
     }
 }

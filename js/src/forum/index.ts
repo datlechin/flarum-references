@@ -3,7 +3,8 @@ import app from 'flarum/forum/app';
 import addBacklinkFooterItem from './addBacklinkFooterItem';
 import addDiscussionSidebar from './addDiscussionSidebar';
 import addMostReferencedSort from './addMostReferencedSort';
-import addManualReferenceControl from './addManualReferenceControl';
+import addManageLinksControl from './addManageLinksControl';
+import addNotificationPreferences from './addNotificationPreferences';
 import registerMentionable from './registerMentionable';
 import { filterDiscussionReferences, postFilterDiscussionReferences } from './utils/textFormatter';
 
@@ -17,6 +18,7 @@ app.initializers.add('datlechin-references', () => {
   addBacklinkFooterItem();
   addDiscussionSidebar();
   addMostReferencedSort();
-  addManualReferenceControl();
+  addManageLinksControl();
+  addNotificationPreferences();
   registerMentionable();
 });

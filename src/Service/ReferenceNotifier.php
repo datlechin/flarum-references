@@ -12,6 +12,7 @@
 namespace Datlechin\References\Service;
 
 use Datlechin\References\Notification\DiscussionReferencedBlueprint;
+use Datlechin\References\Notification\FollowedDiscussionReferencedBlueprint;
 use Datlechin\References\Notification\PostReferencedBlueprint;
 use Datlechin\References\Reference;
 use Datlechin\References\ReferenceOrigin;
@@ -26,6 +27,12 @@ use Flarum\User\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Two audiences, two notification types. Whoever wrote what was referenced
+ * hears "your post" or "your discussion"; followers of that discussion hear
+ * "a discussion you follow". Followers used to be sent the author's
+ * notification, which told each of them it was their post.
+ */
 final class ReferenceNotifier
 {
     public function __construct(
@@ -43,32 +50,49 @@ final class ReferenceNotifier
     {
         $references = Reference::query()
             ->whereIn('id', $referenceIds)
-            ->with('sourcePost.user')
+            ->with('sourcePost.user', 'targetDiscussion')
             ->get();
 
         foreach ($references as $reference) {
-            $blueprint = $this->blueprintFor($reference);
+            $source = $reference->sourcePost;
 
-            if ($blueprint === null) {
+            if (! $source instanceof Post) {
                 continue;
             }
 
-            $recipients = $this->recipients($reference);
+            $target = $this->target($reference);
+            $author = $this->author($reference, $target);
+            $authors = $author !== null ? [$author->id => $author] : [];
 
-            if ($recipients !== []) {
-                $this->notifications->sync($blueprint, $recipients);
+            // Mentions tells the author of a mentioned post, and nobody else,
+            // so followers still hear about it from here. The author hears
+            // about it once, from Mentions.
+            $personal = $this->announcedByMentions($reference) ? null : $this->personalBlueprint($reference, $source, $target);
+
+            if ($personal !== null) {
+                $this->sync($personal, $source, $authors);
+            }
+
+            $discussion = $reference->targetDiscussion;
+
+            if ($discussion instanceof Discussion) {
+                $this->sync(
+                    new FollowedDiscussionReferencedBlueprint($discussion, $source),
+                    $source,
+                    array_diff_key($this->followers($discussion), $authors),
+                );
             }
         }
     }
 
     public function retractFor(Post $post): void
     {
-        $this->retract(Reference::query()->where('source_post_id', $post->id)->get());
+        $this->retract(Reference::query()->where('source_post_id', $post->id)->with('sourcePost', 'targetDiscussion')->get());
     }
 
     public function retractForDiscussion(int $discussionId): void
     {
-        $this->retract(Reference::query()->where('source_discussion_id', $discussionId)->get());
+        $this->retract(Reference::query()->where('source_discussion_id', $discussionId)->with('sourcePost', 'targetDiscussion')->get());
     }
 
     /**
@@ -77,30 +101,35 @@ final class ReferenceNotifier
     protected function retract(Collection $references): void
     {
         foreach ($references as $reference) {
-            $blueprint = $this->blueprintFor($reference);
+            $source = $reference->sourcePost;
 
-            if ($blueprint !== null) {
-                $this->notifications->delete($blueprint);
+            if (! $source instanceof Post) {
+                continue;
+            }
+
+            $personal = $this->personalBlueprint($reference, $source, $this->target($reference));
+
+            if ($personal !== null) {
+                $this->notifications->delete($personal);
+            }
+
+            if ($reference->targetDiscussion instanceof Discussion) {
+                $this->notifications->delete(new FollowedDiscussionReferencedBlueprint($reference->targetDiscussion, $source));
             }
         }
     }
 
-    protected function blueprintFor(Reference $reference): ?BlueprintInterface
+    /**
+     * Mentions announced this exact pair already, to the author of the post
+     * mentioned. Telling them twice would be our doing, not theirs.
+     */
+    protected function announcedByMentions(Reference $reference): bool
     {
-        $source = $reference->sourcePost;
+        return $reference->origin === ReferenceOrigin::Mention && $this->extensions->isEnabled('flarum-mentions');
+    }
 
-        if (! $source instanceof Post) {
-            return null;
-        }
-
-        // flarum/mentions already announced this exact pair. Saying it twice
-        // is our doing, not theirs.
-        if ($reference->origin === ReferenceOrigin::Mention && $this->extensions->isEnabled('flarum-mentions')) {
-            return null;
-        }
-
-        $target = $this->target($reference);
-
+    protected function personalBlueprint(Reference $reference, Post $source, ?Model $target): ?BlueprintInterface
+    {
         return match (true) {
             $target instanceof Discussion => new DiscussionReferencedBlueprint($target, $source),
             $target instanceof Post => new PostReferencedBlueprint($target, $source),
@@ -122,61 +151,44 @@ final class ReferenceNotifier
         return $modelClass::query()->find($reference->target_id);
     }
 
-    /**
-     * @return list<User>
-     */
-    protected function recipients(Reference $reference): array
+    protected function author(Reference $reference, ?Model $target): ?User
     {
-        $source = $reference->sourcePost;
-        $target = $this->target($reference);
         $handler = $this->targets->get($reference->target_type);
 
-        if (! $source instanceof Post || $target === null || $handler === null) {
-            return [];
+        if ($target === null || $handler === null) {
+            return null;
         }
-
-        $recipients = [];
 
         $author = $handler->author($target);
 
-        if ($author instanceof User && $author->id !== null) {
-            $recipients[$author->id] = $author;
-        }
+        return $author instanceof User && $author->id !== null ? $author : null;
+    }
 
-        foreach ($this->followers($reference) as $follower) {
-            if ($follower->id !== null) {
-                $recipients[$follower->id] ??= $follower;
-            }
-        }
-
-        // Nobody needs telling that they linked something themselves, and
-        // nobody should hear about a post they cannot open.
+    /**
+     * Nobody needs telling that they linked something themselves, and nobody
+     * should hear about a post they cannot open.
+     *
+     * @param array<int, User> $recipients
+     */
+    protected function sync(BlueprintInterface $blueprint, Post $source, array $recipients): void
+    {
         if ($source->user_id !== null) {
             unset($recipients[$source->user_id]);
         }
 
-        return array_values(array_filter(
-            $recipients,
-            fn (User $user) => $source->isVisibleTo($user),
-        ));
+        $recipients = array_values(array_filter($recipients, fn (User $user) => $source->isVisibleTo($user)));
+
+        if ($recipients !== []) {
+            $this->notifications->sync($blueprint, $recipients);
+        }
     }
 
     /**
-     * @return list<User>
+     * @return array<int, User>
      */
-    protected function followers(Reference $reference): array
+    protected function followers(Discussion $discussion): array
     {
-        if (
-            $reference->target_discussion_id === null
-            || ! $this->config->notifyFollowers()
-            || ! $this->extensions->isEnabled('flarum-subscriptions')
-        ) {
-            return [];
-        }
-
-        $discussion = Discussion::query()->find($reference->target_discussion_id);
-
-        if (! $discussion instanceof Discussion) {
+        if (! $this->config->notifyFollowers() || ! $this->extensions->isEnabled('flarum-subscriptions')) {
             return [];
         }
 
@@ -187,8 +199,8 @@ final class ReferenceNotifier
             ->select('users.*')
             ->chunk(150, function (Collection $chunk) use (&$followers) {
                 foreach ($chunk as $user) {
-                    if ($user instanceof User) {
-                        $followers[] = $user;
+                    if ($user instanceof User && $user->id !== null) {
+                        $followers[$user->id] = $user;
                     }
                 }
             });

@@ -2,102 +2,116 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md) [![Latest Stable Version](https://img.shields.io/packagist/v/datlechin/flarum-references.svg)](https://packagist.org/packages/datlechin/flarum-references) [![Total Downloads](https://img.shields.io/packagist/dt/datlechin/flarum-references.svg)](https://packagist.org/packages/datlechin/flarum-references) [![Sponsor](https://img.shields.io/github/sponsors/datlechin?logo=githubsponsors&label=Sponsor)](https://github.com/sponsors/datlechin)
 
-Someone links a discussion from another post. Flarum turns it into a `#12` label and records nothing, so the discussion being linked never finds out. This keeps the connection and shows it at both ends.
+A [Flarum](https://flarum.org) extension that tracks links between discussions. When a post links to another discussion, the linked discussion shows where it was linked from.
 
-![A discussion listing what references it and what it references](screenshots/discussion.png)
+![Discussion page](screenshots/discussion.png)
 
-## Install
+## Features
+
+- Records links to other discussions and to posts in other discussions.
+- Adds a `#` picker to the composer that inserts a discussion reference: `@"Discussion title"#d12`.
+- Shows "Linked from" and "Links to" lists in the discussion sidebar. On phones this is one "N links" button.
+- Shows "Linked from ..." under a post that another discussion links to.
+- An "All links" dialog with details and a map of connected discussions.
+- Related discussions, based on which discussions are linked together.
+- A "Most linked" sort option.
+- Search filters: `references:12`, `referenced-by:12`, `has:references`.
+- Moderators can add links by hand, set a type (duplicate of, see also, replaces, answers), add a note, and remove links they added.
+- Notifications for authors and followers.
+- Admin reports: broken links and analytics with CSV export.
+
+![All links dialog](screenshots/links.png)
+
+## What counts as a link
+
+A link from one discussion to a **different** discussion. These are not recorded:
+
+- Replies and links within the same discussion. Mentions already shows replies.
+- Links inside quotes. They belong to the quoted post.
+
+Linking the same target more than once in a post counts once.
+
+## Moderation
+
+Open a discussion's moderation menu and choose **Manage links**. From there you can:
+
+- **Add link**: link this discussion to another one without editing any post.
+- **Edit**: set the link type and a note. An edited link is kept when its post is edited.
+- **Remove**: delete a link that was added by hand. Links written in posts are removed by editing the post.
+
+## Installation
+
+Requires Flarum 2.0 and PHP 8.2.
 
 ```sh
 composer require datlechin/flarum-references
 php flarum migrate
+php flarum cache:clear
 php flarum references:backfill
 ```
 
-Needs Flarum 2.0 and PHP 8.2.
+The backfill command records references in posts written before the extension was installed. Run it once.
 
-Run the backfill once. Posts written before you installed this are only picked up that way, because Flarum releases the events it listens to through the API layer alone.
+## Updating
 
-## What gets recorded
-
-- A link to a discussion or to a post in this forum.
-- A typed reference. Press `#` in the composer, pick a discussion, and it inserts `@"Discussion title"#d12`. Edit the post later and you see it back with the title as it reads today.
-- A post mention, when Mentions is installed.
-
-Linking the same target twice in one post is one reference, not two.
-
-## What you see
-
-A discussion lists what points at it and what it points at. A post that was linked says so under its text, in the same place Mentions puts its replies, merged into one list instead of two that disagree.
-
-Related discussions come from which discussions get cited together, not from tags or titles.
-
-The graph shows how the discussions around this one connect.
-
-![The reference graph](screenshots/graph.png)
-
-The discussion list can be sorted by how often each one is cited.
-
-![Most referenced in the sort menu](screenshots/sort.png)
-
-Search with `references:12`, `referenced-by:12` and `has:references`.
-
-## For moderators
-
-A reference can be given a type: duplicate of, see also, supersedes, answers. Typing one protects it, so it survives an edit to the post that produced it.
-
-You can also add a reference by hand between two discussions, without editing anybody's post.
-
-When a target is deleted the reference is kept and marked broken, so the report has something to show. The admin page has counts by day, by origin and by relation, with CSV export.
+```sh
+composer update datlechin/flarum-references
+php flarum migrate
+php flarum cache:clear
+```
 
 ## Settings
 
-Admin, then Extensions, then References.
+Go to **Admin → Extensions → References**.
 
-![The settings page](screenshots/admin.png)
+![Settings page](screenshots/admin.png)
 
-| Setting | Default | What it does |
+| Setting | Default | Description |
 | --- | --- | --- |
-| Record references | on | Master switch. Off stops recording, existing references stay. |
-| Record pasted links | on | A link to a discussion or a post here becomes a reference. |
-| Record typed references | on | The `@"Title"#d12` form. |
-| Record post mentions | on | Needs Mentions. |
-| References shown at once | 4 | The rest go behind a button. |
-| Announce references in the discussion | off | Adds a line saying where it was linked from. |
-| Show related discussions | on | With how many to show, and a ceiling on how many discussions are read to find them. |
-| Cache duration | 300s | For the related list and the graph. 0 turns caching off. |
-| Graph depth | 2 | How many steps out the graph reaches, and how many links per step. |
-| Also notify followers | on | Needs Subscriptions. |
-| Keep broken references | 365 days | 0 keeps them forever. |
+| Record links | On | Turns recording on or off. Existing links are kept. |
+| Record pasted links | On | Record links to other discussions and posts. |
+| Record typed references | On | Record `@"Title"#d12` references. |
+| Record post mentions | On | Record mentions of posts in other discussions. Requires Mentions. |
+| Links shown in the sidebar | 4 | How many links each sidebar list shows. |
+| Announce new links in the discussion | Off | Adds an event post to the linked discussion. |
+| Show related discussions | On | Shows related discussions in the sidebar. |
+| Cache duration | 300 | Seconds to cache related discussions and the map. `0` disables caching. |
+| Graph depth | 2 | How many steps the map follows. |
+| Notify followers | On | Notify users following the linked discussion. Requires Subscriptions. |
+| Keep broken references | 365 | Days to keep links to deleted content. `0` keeps them forever. |
 
 ## Permissions
 
-Three, so reading the reports does not carry the right to change anything.
-
-| Permission | Allows |
-| --- | --- |
-| Create and edit references | Adding a reference by hand, and typing one. |
-| See broken references | The broken report. |
-| See reference analytics | The counts and the CSV export. |
+| Permission | Default | Allows |
+| --- | --- | --- |
+| Create and edit references | Moderators | Adding, editing and removing links. |
+| See broken references | Moderators | The broken references report. |
+| See reference analytics | Admins | The analytics report and CSV export. |
 
 ## Notifications
 
-The author of what was referenced hears about it, and followers of that discussion when Subscriptions is on. Alert by default, email opt-in, both in the usual notification settings.
+Users can turn each type on or off in their notification settings.
 
-A post mention that Mentions already announced is not announced twice.
+- Someone links to a discussion you started.
+- Someone links to your post.
+- Someone links to a discussion you follow (requires Subscriptions).
+
+Post mentions are announced by Mentions, so the post author is not notified twice.
 
 ## Commands
 
-| Command | What it does |
+| Command | Description |
 | --- | --- |
-| `references:backfill` | Records references for posts written before install. Resume with `--from-id`. |
-| `references:reconcile` | Recomputes the ranking counter. Runs daily. |
-| `references:build-daily-rollup` | Aggregates for the analytics page. Runs daily. |
-| `references:purge-broken` | Drops broken references past the retention window. Runs daily. |
+| `references:backfill` | Records references in existing posts. Use `--from-id` to resume. |
+| `references:reconcile` | Recalculates the reference counts. Runs daily. |
+| `references:build-daily-rollup` | Builds the analytics data. Runs daily. |
+| `references:purge-broken` | Deletes broken references older than the retention period. Runs daily. |
 
-## For extension authors
+Daily commands run through Flarum's scheduler (`php flarum schedule:run`).
 
-A reference can point at something this extension has never heard of:
+## For developers
+
+Register a new reference target, such as a wiki page:
 
 ```php
 (new Extend\Conditional())
@@ -107,10 +121,11 @@ A reference can point at something this extension has never heard of:
     ]),
 ```
 
-One `ReferenceTarget` covers URL extraction, the manual picker, the polymorphic `target` relationship, the morph map and the moderation UI. Read the interface first. A `query()` that forgets `whereVisibleTo` leaks the existence of things the reader cannot open, because counts run through a path that skips the resource's own scope.
+`WikiPageTarget` implements `Datlechin\References\Contract\ReferenceTarget`. Its `query()` method must apply `whereVisibleTo($actor)`, otherwise reference counts can include items the user cannot see.
 
 ## Links
 
 - [Discuss](https://discuss.flarum.org/d/39830-references)
 - [Packagist](https://packagist.org/packages/datlechin/flarum-references)
+- [GitHub](https://github.com/datlechin/flarum-references)
 - [Issues](https://github.com/datlechin/flarum-references/issues)

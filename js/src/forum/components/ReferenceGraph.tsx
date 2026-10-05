@@ -11,7 +11,8 @@ type GraphNode = { id: number; title: string; count: number };
 type GraphEdge = { from: number; to: number };
 type Graph = { nodes: GraphNode[]; edges: GraphEdge[] };
 
-type Placed = GraphNode & { x: number; y: number; room: number };
+// `side` is -1 left of the centre, 1 right of it, 0 for the centre column.
+type Placed = GraphNode & { x: number; y: number; room: number; side: number; column: number };
 
 const ROW = 72;
 const PADDING = 16;
@@ -43,7 +44,7 @@ export default class ReferenceGraph<CustomAttrs extends IReferenceGraphAttrs = I
   }
 
   failure(): Mithril.Children {
-    return <Placeholder text={app.translator.trans('datlechin-references.forum.graph.empty')} />;
+    return <Placeholder text={app.translator.trans('datlechin-references.forum.map.empty')} />;
   }
 
   content(graph: Graph): Mithril.Children {
@@ -61,7 +62,7 @@ export default class ReferenceGraph<CustomAttrs extends IReferenceGraphAttrs = I
       .filter((e): e is { edge: GraphEdge; from: Placed; to: Placed } => !!e.from && !!e.to);
 
     const height = Math.max(...placed.map((node) => node.y)) + ROW / 2 + PADDING;
-    const width = Math.max(...placed.map((node) => node.x)) + COLUMN / 2 + PADDING;
+    const width = PADDING * 2 + COLUMN * new Set(placed.map((node) => node.column)).size;
 
     return (
       <svg
@@ -74,7 +75,7 @@ export default class ReferenceGraph<CustomAttrs extends IReferenceGraphAttrs = I
         width={width}
         height={height}
         role="img"
-        aria-label={app.translator.trans('datlechin-references.forum.graph.accessible_label', { count: graph.nodes.length }, true)}
+        aria-label={app.translator.trans('datlechin-references.forum.map.accessible_label', { count: graph.nodes.length }, true)}
       >
         <defs>
           <marker id="ReferenceGraph-arrow" markerWidth={ARROW} markerHeight={ARROW} refX={ARROW} refY={ARROW / 2} orient="auto">
@@ -82,27 +83,9 @@ export default class ReferenceGraph<CustomAttrs extends IReferenceGraphAttrs = I
           </marker>
         </defs>
 
-        {edges.map(({ edge, from, to }) => {
-          // Stopped short of the node so the head sits against it rather than
-          // under it, and measured along the edge so a diagonal is trimmed by
-          // the same amount as a horizontal one.
-          const dx = to.x - from.x;
-          const dy = to.y - from.y;
-          const length = Math.hypot(dx, dy) || 1;
-          const trim = (RADIUS + ARROW) / length;
-
-          return (
-            <line
-              key={`${edge.from}-${edge.to}`}
-              className="ReferenceGraph-edge"
-              marker-end="url(#ReferenceGraph-arrow)"
-              x1={from.x + dx * (RADIUS / length)}
-              y1={from.y + dy * (RADIUS / length)}
-              x2={to.x - dx * trim}
-              y2={to.y - dy * trim}
-            />
-          );
-        })}
+        {edges.map(({ edge, from, to }) => (
+          <path key={`${edge.from}-${edge.to}`} className="ReferenceGraph-edge" marker-end="url(#ReferenceGraph-arrow)" d={this.edgePath(from, to)} />
+        ))}
 
         {placed.map((node) => {
           const centre = node.id === centreId;
@@ -120,12 +103,7 @@ export default class ReferenceGraph<CustomAttrs extends IReferenceGraphAttrs = I
                 cy={node.y}
                 r={centre ? 7 : RADIUS}
               />
-              <text
-                className={classList('ReferenceGraph-label', { 'ReferenceGraph-label--centre': centre })}
-                x={node.x}
-                y={node.y + 22}
-                text-anchor="middle"
-              >
+              <text className={classList('ReferenceGraph-label', { 'ReferenceGraph-label--centre': centre })} {...this.labelPosition(node)}>
                 {truncate(node.title, Math.floor(node.room * PER_PIXEL))}
                 <title>{node.title}</title>
               </text>
@@ -134,6 +112,39 @@ export default class ReferenceGraph<CustomAttrs extends IReferenceGraphAttrs = I
         })}
       </svg>
     );
+  }
+
+  /**
+   * Stopped short of both nodes so the arrow head sits against the node
+   * rather than under it. Two nodes in the same column are joined by a curve
+   * that bows inwards, away from the labels.
+   */
+  /**
+   * Labels sit on the outer side of their node, away from the centre, so the
+   * lines, which all run inwards, do not cross them. The centre's label sits
+   * below it.
+   */
+  private labelPosition(node: Placed): Record<string, string | number> {
+    if (node.side === 0) return { x: node.x, y: node.y + 22, 'text-anchor': 'middle' };
+
+    return { x: node.x + node.side * 10, y: node.y + 4, 'text-anchor': node.side < 0 ? 'end' : 'start' };
+  }
+
+  private edgePath(from: Placed, to: Placed): string {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy) || 1;
+
+    const x1 = from.x + dx * (RADIUS / length);
+    const y1 = from.y + dy * (RADIUS / length);
+    const x2 = to.x - dx * ((RADIUS + ARROW) / length);
+    const y2 = to.y - dy * ((RADIUS + ARROW) / length);
+
+    if (Math.abs(dx) > 1) return `M${x1},${y1} L${x2},${y2}`;
+
+    const bow = (from.side < 0 ? 1 : -1) * Math.min(COLUMN / 2, 24 + length / 4);
+
+    return `M${from.x},${from.y + RADIUS * Math.sign(dy)} Q${from.x + bow},${(from.y + to.y) / 2} ${to.x},${to.y - (RADIUS + ARROW) * Math.sign(dy)}`;
   }
 
   /**
@@ -210,6 +221,11 @@ export default class ReferenceGraph<CustomAttrs extends IReferenceGraphAttrs = I
 
     indices.forEach((index, position) => {
       const nodes = columns.get(index) ?? [];
+      const side = Math.sign(index);
+      const cell = PADDING + position * COLUMN;
+      // A side node sits at the inner edge of its column and its label fills
+      // the rest; the centre node sits in the middle with its label below.
+      const x = side < 0 ? cell + COLUMN - 16 : side > 0 ? cell + 16 : cell + COLUMN / 2;
       // Centred against the tallest column, so a short one sits opposite the
       // middle of the long one instead of stacking from the top.
       const offset = (rows - nodes.length) / 2;
@@ -217,8 +233,10 @@ export default class ReferenceGraph<CustomAttrs extends IReferenceGraphAttrs = I
       nodes.forEach((node, row) => {
         placed.push({
           ...node,
-          x: PADDING + COLUMN / 2 + position * COLUMN,
-          room: COLUMN - 12,
+          x,
+          side,
+          column: index,
+          room: side === 0 ? COLUMN - 12 : COLUMN - 40,
           y: PADDING + (offset + row + 0.5) * ROW,
         });
       });

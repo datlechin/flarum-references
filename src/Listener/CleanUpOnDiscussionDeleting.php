@@ -41,17 +41,10 @@ final class CleanUpOnDiscussionDeleting
         $this->marker->markDiscussion($discussionId);
 
         $outgoing = Reference::query()->where('source_discussion_id', $discussionId);
-
-        $decrements = [];
-
-        foreach ($outgoing->get(['id', 'target_discussion_id', 'target_deleted_at']) as $row) {
-            if ($row->target_discussion_id !== null && $row->target_discussion_id !== $discussionId && ! $row->isBroken()) {
-                $decrements[$row->target_discussion_id] = ($decrements[$row->target_discussion_id] ?? 0) - 1;
-            }
-        }
+        $touched = (clone $outgoing)->distinct()->pluck('target_discussion_id')->all();
 
         $outgoing->delete();
 
-        $this->counter->apply($decrements);
+        $this->counter->refresh($touched);
     }
 }

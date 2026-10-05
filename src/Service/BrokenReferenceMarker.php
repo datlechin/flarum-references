@@ -55,20 +55,14 @@ final class BrokenReferenceMarker
     {
         $query->whereNull('target_deleted_at');
 
-        $decrements = [];
+        $touched = (clone $query)->distinct()->pluck('target_discussion_id')->all();
 
-        foreach ($query->get(['id', 'target_discussion_id']) as $row) {
-            if ($row->target_discussion_id !== null) {
-                $decrements[$row->target_discussion_id] = ($decrements[$row->target_discussion_id] ?? 0) - 1;
-            }
-        }
-
-        if ($decrements === [] && (clone $query)->doesntExist()) {
+        if ($touched === []) {
             return;
         }
 
         $query->update(['target_deleted_at' => Carbon::now()]);
 
-        $this->counter->apply($decrements);
+        $this->counter->refresh($touched);
     }
 }

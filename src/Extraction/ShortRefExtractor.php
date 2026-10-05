@@ -15,7 +15,6 @@ use Datlechin\References\Formatter\ConfigureDiscussionReferences;
 use Datlechin\References\Reference;
 use Datlechin\References\ReferenceOrigin;
 use Datlechin\References\Settings\Config;
-use s9e\TextFormatter\Utils;
 
 final class ShortRefExtractor implements ExtractorInterface
 {
@@ -29,19 +28,18 @@ final class ShortRefExtractor implements ExtractorInterface
         return ReferenceOrigin::ShortRef;
     }
 
-    public function extract(string $parsedXml): array
+    public function extract(ParsedContent $content): array
     {
-        $tag = ConfigureDiscussionReferences::TAG_NAME;
-
-        if (! $this->config->extractShortReferences() || ! str_contains($parsedXml, '<'.$tag)) {
+        if (! $this->config->extractShortReferences()) {
             return [];
         }
 
         $found = [];
 
         // The filter chain already refused any id without a discussion behind
-        // it, so what survived into the stored XML needs no second look.
-        foreach (Utils::getAttributeValues($parsedXml, $tag, 'id') as $id) {
+        // it, so what survived into the stored XML needs no second look. One
+        // inside a quote was typed by whoever is being quoted.
+        foreach ($content->attributeValues(ConfigureDiscussionReferences::TAG_NAME, 'id') as $id) {
             if (! ctype_digit($id)) {
                 continue;
             }

@@ -18,7 +18,8 @@ use Flarum\Search\SearchState;
 use Flarum\Search\ValidateFilterTrait;
 
 /**
- * `referenced-by:12` finds the discussions that discussion 12 cites.
+ * `referenced-by:12` finds the discussions that discussion 12 cites, through
+ * a link to the discussion or to any post in it.
  *
  * @implements FilterInterface<DatabaseSearchState>
  */
@@ -39,9 +40,9 @@ final class ReferencedByFilter implements FilterInterface
         // visible only when both of its ends are. Unscoped, the filter answers
         // questions about a discussion the reader cannot open.
         $targets = Reference::whereVisibleTo($state->getActor())
-            ->where('target_type', Reference::TARGET_DISCUSSION)
-            ->whereIn('source_discussion_id', $ids)
-            ->select('target_id');
+            ->whereIn('post_references.source_discussion_id', $ids)
+            ->whereNotNull('post_references.target_discussion_id')
+            ->select('post_references.target_discussion_id');
 
         $state->getQuery()->whereIn('discussions.id', $targets, 'and', $negate);
     }

@@ -71,7 +71,7 @@ export default class ReferenceAnalytics<CustomAttrs extends ComponentAttrs = Com
             ))}
           </div>
         ) : (
-          <Placeholder text={trans('analytics.empty')} />
+          <Placeholder text={trans(totals.references > 0 ? 'analytics.pending' : 'analytics.empty')} />
         )}
 
         <div className="ReferenceAnalytics-breakdowns">

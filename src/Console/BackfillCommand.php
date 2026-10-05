@@ -11,6 +11,7 @@
 
 namespace Datlechin\References\Console;
 
+use Datlechin\References\Service\ReferenceCounter;
 use Datlechin\References\Service\ReferenceSyncer;
 use Flarum\Post\CommentPost;
 use Illuminate\Console\Command;
@@ -26,7 +27,7 @@ final class BackfillCommand extends Command
 
     protected $description = 'Record references for posts written before the extension was enabled.';
 
-    public function handle(ReferenceSyncer $syncer): int
+    public function handle(ReferenceSyncer $syncer, ReferenceCounter $counter): int
     {
         $chunkSize = max(1, (int) $this->option('chunk'));
         $fromId = $this->option('from-id') !== null ? (int) $this->option('from-id') : 0;
@@ -46,13 +47,17 @@ final class BackfillCommand extends Command
 
                 // A historical pass must never delete: a target it cannot
                 // resolve today, because the extension owning it is off, would
-                // take real rows with it.
-                $rows += count($syncer->sync($post, deleteOrphans: false));
+                // take real rows with it. Counters are recounted once at the
+                // end rather than after every post.
+                $rows += count($syncer->sync($post, deleteOrphans: false, refreshCounters: false));
             }
         }, 'id', 'id');
 
         $bar->finish();
         $this->newLine();
+
+        $this->call('references:reconcile');
+
         $this->info("Scanned $posts posts, recorded $rows references.");
 
         return self::SUCCESS;

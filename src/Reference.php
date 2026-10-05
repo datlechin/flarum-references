@@ -17,9 +17,11 @@ use Flarum\Database\ScopeVisibilityTrait;
 use Flarum\Discussion\Discussion;
 use Flarum\Post\Post;
 use Flarum\User\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
  * @property int                $id
@@ -40,6 +42,8 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property-read Discussion|null $targetDiscussion
  * @property-read User|null     $createdBy
  * @property-read Model|null    $target
+ *
+ * @method static Builder<self> counted()
  */
 class Reference extends AbstractModel
 {
@@ -55,13 +59,16 @@ class Reference extends AbstractModel
 
     protected $guarded = ['id'];
 
-    protected $casts = [
-        'relation_type' => RelationType::class,
-        'origin' => ReferenceOrigin::class,
-        'target_deleted_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'relation_type' => RelationType::class,
+            'origin' => ReferenceOrigin::class,
+            'target_deleted_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     public function sourceDiscussion(): BelongsTo
     {
@@ -91,5 +98,45 @@ class Reference extends AbstractModel
     public function isBroken(): bool
     {
         return $this->target_deleted_at !== null;
+    }
+
+    /**
+     * A moderator has said something about this row, which is what protects it
+     * from the next edit of the post that produced it.
+     */
+    public function isClassified(): bool
+    {
+        return $this->relation_type !== RelationType::References || $this->note !== null;
+    }
+
+    /**
+     * The rows that shape what everybody sees: the ranking counter, related
+     * discussions and the graph. Not broken, and written somewhere a guest
+     * could in principle read, so a hidden post or a discussion awaiting
+     * approval cannot push another discussion up the list.
+     *
+     * Tag permissions are not considered. These are forum wide numbers, the
+     * same for every reader, and core's own comment count makes the same call.
+     *
+     * @param Builder<self> $query
+     */
+    public function scopeCounted(Builder $query): void
+    {
+        $query
+            ->whereNull('post_references.target_deleted_at')
+            ->whereExists(fn (QueryBuilder $query) => $query
+                ->selectRaw('1')
+                ->from('discussions')
+                ->whereColumn('discussions.id', 'post_references.source_discussion_id')
+                ->whereNull('discussions.hidden_at')
+                ->where('discussions.is_private', false))
+            ->where(fn (Builder $query) => $query
+                ->whereNull('post_references.source_post_id')
+                ->orWhereExists(fn (QueryBuilder $query) => $query
+                    ->selectRaw('1')
+                    ->from('posts')
+                    ->whereColumn('posts.id', 'post_references.source_post_id')
+                    ->whereNull('posts.hidden_at')
+                    ->where('posts.is_private', false)));
     }
 }

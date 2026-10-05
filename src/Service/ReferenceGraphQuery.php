@@ -11,10 +11,11 @@
 
 namespace Datlechin\References\Service;
 
+use Datlechin\References\Reference;
 use Datlechin\References\Settings\Config;
 use Flarum\Discussion\Discussion;
 use Flarum\User\User;
-use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 
 /**
  * Breadth first, in PHP, two queries per hop.
@@ -27,7 +28,6 @@ use Illuminate\Database\ConnectionInterface;
 final class ReferenceGraphQuery
 {
     public function __construct(
-        private ConnectionInterface $db,
         private Config $config,
     ) {
     }
@@ -75,10 +75,15 @@ final class ReferenceGraphQuery
      * not a function of the groups they belong to, because core also grants a
      * discussion to its own author.
      *
+     * Only what the reader can reach from the centre through discussions they
+     * may open is kept. A discussion found two steps out through one they
+     * cannot see used to stay on the page with no edge to it, which said
+     * there was a hidden discussion between them.
+     *
      * @param array{ids: list<int>, edges: list<array{from: int, to: int}>} $graph
      * @return array{nodes: list<array{id: int, title: string, count: int}>, edges: list<array{from: int, to: int}>}
      */
-    public function visible(array $graph, User $actor): array
+    public function visible(array $graph, User $actor, int $centre): array
     {
         $edges = $graph['edges'];
 
@@ -96,36 +101,62 @@ final class ReferenceGraphQuery
             ];
         }
 
-        $visible = array_column($nodes, 'id');
+        $visible = array_flip(array_column($nodes, 'id'));
 
         $edges = array_values(array_filter(
             $edges,
-            fn (array $edge) => in_array($edge['from'], $visible, true) && in_array($edge['to'], $visible, true),
+            fn (array $edge) => isset($visible[$edge['from']], $visible[$edge['to']]),
         ));
 
-        return ['nodes' => $nodes, 'edges' => $edges];
+        $reached = $this->reachable($centre, $edges);
+
+        return [
+            'nodes' => array_values(array_filter($nodes, fn (array $node) => isset($reached[$node['id']]))),
+            'edges' => array_values(array_filter($edges, fn (array $edge) => isset($reached[$edge['from']]))),
+        ];
     }
 
     /**
+     * @param list<array{from: int, to: int}> $edges
+     * @return array<int, true>
+     */
+    private function reachable(int $centre, array $edges): array
+    {
+        $neighbours = [];
+
+        foreach ($edges as $edge) {
+            $neighbours[$edge['from']][] = $edge['to'];
+            $neighbours[$edge['to']][] = $edge['from'];
+        }
+
+        $reached = [$centre => true];
+        $queue = [$centre];
+
+        while ($queue !== []) {
+            foreach ($neighbours[array_shift($queue)] ?? [] as $next) {
+                if (! isset($reached[$next])) {
+                    $reached[$next] = true;
+                    $queue[] = $next;
+                }
+            }
+        }
+
+        return $reached;
+    }
+
+    /**
+     * One edge per pair of discussions, however many posts in one cite the
+     * other: counting rows let a single chatty thread use up a whole hop.
+     * Read from {@see Reference::scopeCounted()}, so a hidden post draws no
+     * line.
+     *
      * @param list<int> $ids
      * @return list<array{from: int, to: int}>
      */
     protected function edgesFor(array $ids, int $limit): array
     {
-        $out = $this->db->table('post_references')
-            ->whereIn('source_discussion_id', $ids)
-            ->whereNotNull('target_discussion_id')
-            ->whereNull('target_deleted_at')
-            ->orderByDesc('id')
-            ->limit($limit)
-            ->get(['source_discussion_id', 'target_discussion_id']);
-
-        $in = $this->db->table('post_references')
-            ->whereIn('target_discussion_id', $ids)
-            ->whereNull('target_deleted_at')
-            ->orderByDesc('id')
-            ->limit($limit)
-            ->get(['source_discussion_id', 'target_discussion_id']);
+        $out = $this->pairs($limit)->whereIn('post_references.source_discussion_id', $ids)->get();
+        $in = $this->pairs($limit)->whereIn('post_references.target_discussion_id', $ids)->get();
 
         $edges = [];
 
@@ -139,5 +170,15 @@ final class ReferenceGraphQuery
         }
 
         return $edges;
+    }
+
+    private function pairs(int $limit): QueryBuilder
+    {
+        return Reference::query()->counted()->toBase()
+            ->whereNotNull('post_references.target_discussion_id')
+            ->groupBy('post_references.source_discussion_id', 'post_references.target_discussion_id')
+            ->select('post_references.source_discussion_id', 'post_references.target_discussion_id')
+            ->orderByRaw('max(id) desc')
+            ->limit($limit);
     }
 }

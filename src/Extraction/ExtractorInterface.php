@@ -21,7 +21,10 @@ interface ExtractorInterface
      * Only parse-time attributes are readable here. `Post::$parsed_content` is
      * frozen, so anything a render pass works out later is not in it.
      *
+     * Whether a target sits in the post's own discussion is not this method's
+     * question: the syncer resolves every target and drops those itself.
+     *
      * @return list<ExtractedReference>
      */
-    public function extract(string $parsedXml): array;
+    public function extract(ParsedContent $content): array;
 }

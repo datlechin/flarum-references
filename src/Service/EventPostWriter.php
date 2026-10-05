@@ -17,6 +17,15 @@ use Datlechin\References\Settings\Config;
 use Flarum\Discussion\Discussion;
 use Flarum\Post\Post;
 
+/**
+ * "Alice referenced this discussion from <where>", written into the discussion
+ * that was referenced.
+ *
+ * Only for a citation written somewhere a guest could in principle read. The
+ * line is shown to everybody who can open the referenced discussion, and a
+ * line saying a member cited it from a hidden or unapproved post tells all of
+ * them the post exists.
+ */
 final class EventPostWriter
 {
     public function __construct(
@@ -25,49 +34,53 @@ final class EventPostWriter
     }
 
     /**
-     * @param list<Reference> $references
+     * @param iterable<Reference> $references
      */
-    public function write(array $references): void
+    public function write(iterable $references): void
     {
         if (! $this->config->eventPostEnabled()) {
             return;
         }
 
-        $byDiscussion = [];
+        $bySource = [];
 
         foreach ($references as $reference) {
-            $targetDiscussionId = $reference->target_discussion_id;
-            $sourcePostId = $reference->source_post_id;
-
-            // A discussion citing itself has nothing to announce, and a manual
-            // reference was not written by anybody's post.
-            if (
-                $targetDiscussionId === null
-                || $sourcePostId === null
-                || $targetDiscussionId === $reference->source_discussion_id
-            ) {
+            // A manual reference was not written by anybody's post.
+            if ($reference->target_discussion_id === null || $reference->source_post_id === null) {
                 continue;
             }
 
-            $byDiscussion[$targetDiscussionId][] = $sourcePostId;
+            $bySource[$reference->source_post_id][$reference->target_discussion_id] = true;
         }
 
-        foreach ($byDiscussion as $discussionId => $sourcePostIds) {
-            $discussion = Discussion::query()->find($discussionId);
+        foreach ($bySource as $sourcePostId => $targetDiscussionIds) {
+            $source = Post::query()->with('discussion')->find($sourcePostId);
 
-            if (! $discussion instanceof Discussion) {
+            if (! $source instanceof Post || ! $this->isPublic($source)) {
                 continue;
             }
 
-            $sourcePost = Post::query()->find($sourcePostIds[0]);
+            foreach (array_keys($targetDiscussionIds) as $discussionId) {
+                $discussion = Discussion::query()->find($discussionId);
 
-            $discussion->mergePost(ReferencedEventPost::reply(
-                $discussionId,
-                $sourcePost?->user_id,
-                array_values(array_unique($sourcePostIds)),
-            ));
+                if (! $discussion instanceof Discussion) {
+                    continue;
+                }
 
-            $discussion->save();
+                $discussion->mergePost(ReferencedEventPost::reply($discussionId, $source));
+                $discussion->save();
+            }
         }
+    }
+
+    private function isPublic(Post $source): bool
+    {
+        $discussion = $source->discussion;
+
+        return ! $source->is_private
+            && $source->hidden_at === null
+            && $discussion instanceof Discussion
+            && ! $discussion->is_private
+            && $discussion->hidden_at === null;
     }
 }

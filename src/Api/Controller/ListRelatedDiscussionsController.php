@@ -12,9 +12,11 @@
 namespace Datlechin\References\Api\Controller;
 
 use Datlechin\References\Service\RelatedDiscussionsQuery;
+use Datlechin\References\Settings\Config;
 use Flarum\Discussion\Discussion;
 use Flarum\Http\RequestUtil;
 use Flarum\Http\SlugManager;
+use Illuminate\Contracts\Cache\Repository as Cache;
 use Illuminate\Support\Arr;
 use Laminas\Diactoros\Response\EmptyResponse;
 use Laminas\Diactoros\Response\JsonResponse;
@@ -27,6 +29,8 @@ final class ListRelatedDiscussionsController implements RequestHandlerInterface
     public function __construct(
         private RelatedDiscussionsQuery $related,
         private SlugManager $slugs,
+        private Cache $cache,
+        private Config $config,
     ) {
     }
 
@@ -41,9 +45,15 @@ final class ListRelatedDiscussionsController implements RequestHandlerInterface
             return new EmptyResponse(404);
         }
 
+        // Only the ranking is cached, because it is the same for everybody.
+        // Which of it a reader may open is decided on every request.
+        $ttl = $this->config->cacheTtl();
+        $rank = fn () => $this->related->rank($id);
+        $ranked = $ttl > 0 ? $this->cache->remember('datlechin-references.related.'.$id, $ttl, $rank) : $rank();
+
         $data = [];
 
-        foreach ($this->related->get($id, $actor) as $related) {
+        foreach ($this->related->visible($ranked, $actor) as $related) {
             $data[] = [
                 'id' => (int) $related->id,
                 'title' => $related->title,

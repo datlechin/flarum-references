@@ -6,77 +6,76 @@ import Icon from 'flarum/common/components/Icon';
 import Link from 'flarum/common/components/Link';
 import punctuateSeries from 'flarum/common/helpers/punctuateSeries';
 import ItemList from 'flarum/common/utils/ItemList';
+import type Discussion from 'flarum/common/models/Discussion';
 import type Mithril from 'mithril';
 
-import ReferenceListModal from './components/ReferenceListModal';
+import LinksModal from './components/LinksModal';
 import type Reference from '../common/models/Reference';
 
-const PREVIEW = 3;
-
+/**
+ * "Linked from <discussion>, <discussion>" under a post another discussion
+ * links to.
+ *
+ * Beside Mentions' "replied to this", never instead of it. Replies are a
+ * conversation inside the discussion and Mentions owns them; removing its list
+ * to draw ours put every reply under the post as the discussion referencing
+ * itself. The server leaves post mentions out of this list for the same
+ * reason, so the two never name the same post.
+ */
 export default function addBacklinkFooterItem() {
   extend(CommentPost.prototype, 'footerItems', function (items: ItemList<Mithril.Children>) {
     const post = this.attrs.post;
-    const references = ((post.referencedBy() || []) as (Reference | undefined)[]).filter(Boolean) as Reference[];
+    const own = post.discussion();
+    const discussionId = own ? own.id() : undefined;
+
+    // Rows from before same-discussion links stopped being recorded may still
+    // sit in a cached payload, so a row from this post's own discussion is
+    // dropped here as well.
+    const references = ((post.referencedBy() || []) as (Reference | undefined)[]).filter((reference): reference is Reference => {
+      const source = reference && reference.sourceDiscussion();
+
+      return !!source && source.id() !== discussionId;
+    });
 
     if (!references.length) return;
 
-    // Mentions puts its own "replied to this" block under this key, and ours
-    // covers the same ground and more. Removing it before the check above cost
-    // every post that had replies but no references the line mentions had
-    // already drawn. Our bundle runs after theirs because composer.json
-    // declares flarum/mentions as an optional dependency.
-    if ('flarum-mentions' in flarum.extensions) {
-      items.remove('replies');
-    }
+    // One name per citing discussion: two posts in the same thread citing this
+    // one would otherwise print its title twice in one sentence.
+    const seen = new Set<string>();
+    const names: Mithril.Children[] = [];
 
-    const count = post.referencedByCount() ?? references.length;
+    for (const reference of references) {
+      const discussion = reference.sourceDiscussion() as Discussion;
+      const id = String(discussion.id());
 
-    const names: Mithril.Children[] = references
-      .slice(0, PREVIEW)
-      .map((reference) => {
-        const discussion = reference.sourceDiscussion();
-        const sourcePost = reference.sourcePost() || null;
+      if (seen.has(id)) continue;
+      seen.add(id);
 
-        if (!discussion) return null;
+      const sourcePost = reference.sourcePost() || null;
 
-        return (
-          <Link href={sourcePost ? app.route.discussion(discussion, sourcePost.number()) : app.route.discussion(discussion)}>
-            {discussion.title()}
-          </Link>
-        );
-      })
-      .filter(Boolean);
-
-    // Counted from what actually rendered, so a reference whose discussion the
-    // reader cannot open folds into the overflow instead of vanishing.
-    const overflow = count - names.length;
-
-    if (overflow > 0) {
       names.push(
-        <Button
-          className="Button Button--text"
-          onclick={() =>
-            app.modal.show(ReferenceListModal, {
-              filter: { target: `posts:${post.id()}` },
-              modalTitle: app.translator.trans('datlechin-references.forum.discussion.referenced_by_title', { count }),
-            })
-          }
-        >
-          {app.translator.trans('datlechin-references.forum.post.others_text', { count: overflow })}
-        </Button>
+        <Link href={sourcePost ? app.route.discussion(discussion, sourcePost.number()) : app.route.discussion(discussion)}>{discussion.title()}</Link>
       );
     }
 
-    // The icon is a sibling of the sentence, never inside the link: core hides
-    // an icon nested in a footer link and sizes a bare one for us.
+    // Counted in citing posts, not discussions: the server counts rows, and
+    // only the preview has been grouped. The wording says "more" rather than
+    // "others" so it does not read as that many more discussions.
+    const count = post.referencedByCount() ?? references.length;
+    const remaining = count - references.length;
+
     items.add(
       'references',
       <div className="Post-referencedBy">
         <Icon name="fas fa-link" />
-        {app.translator.trans('datlechin-references.forum.post.referenced_by_text', {
-          count,
-          discussions: punctuateSeries(names),
-        })}
+        <span className="Post-referencedBy-summary">
+          {app.translator.trans('datlechin-references.forum.post.linked_from_text', { discussions: punctuateSeries(names) })}
+        </span>
+        {remaining > 0 && (
+          <Button className="Button Button--text Post-referencedBy-more" onclick={() => app.modal.show(LinksModal, { post })}>
+            {app.translator.trans('datlechin-references.forum.post.more_button', { count: remaining })}
+          </Button>
+        )}
       </div>
     );
   });

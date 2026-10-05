@@ -28,6 +28,14 @@ export default class Reference extends Model {
     return Model.attribute<boolean>('broken').call(this);
   }
 
+  canEdit() {
+    return Model.attribute<boolean>('canEdit').call(this);
+  }
+
+  canDelete() {
+    return Model.attribute<boolean>('canDelete').call(this);
+  }
+
   createdAt() {
     return Model.attribute<Date | undefined, string | undefined>('createdAt', Model.transformDate).call(this);
   }

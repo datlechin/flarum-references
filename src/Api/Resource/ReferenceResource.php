@@ -74,7 +74,8 @@ class ReferenceResource extends AbstractDatabaseResource
                 // `targetDiscussion` as well as `target`: the outgoing list
                 // names the far end, and for a row targeting a post the target
                 // is that post, leaving no discussion in the store to name.
-                ->defaultInclude(['sourcePost', 'sourcePost.user', 'sourceDiscussion', 'targetDiscussion', 'target'])
+                // `createdBy` names who added a link by hand.
+                ->defaultInclude(['sourcePost', 'sourcePost.user', 'sourceDiscussion', 'targetDiscussion', 'target', 'createdBy'])
                 ->eagerLoad(['sourcePost.discussion'])
                 ->defaultSort('-createdAt')
                 ->paginate(),
@@ -111,7 +112,14 @@ class ReferenceResource extends AbstractDatabaseResource
                 }),
             Schema\Str::make('note')
                 ->writable()
-                ->nullable(),
+                ->nullable()
+                ->maxLength(1000)
+                ->set(function (Reference $reference, ?string $value) {
+                    $value = $value === null ? null : trim($value);
+
+                    $reference->note = $value === '' ? null : $value;
+                    $reference->updated_at = Carbon::now();
+                }),
             Schema\Str::make('origin')
                 ->get(fn (Reference $reference) => $reference->origin->value),
             Schema\Str::make('targetType')
@@ -120,6 +128,14 @@ class ReferenceResource extends AbstractDatabaseResource
                 ->writableOnCreate(),
             Schema\Boolean::make('broken')
                 ->get(fn (Reference $reference) => $reference->isBroken()),
+            Schema\Boolean::make('canEdit')
+                ->get(fn (Reference $reference, FlarumContext $context) => $context->getActor()->hasPermission(self::PERMISSION)),
+            // Only a hand made reference can go. One a post wrote is retracted
+            // by editing the post, and deleting it here would only invite the
+            // next sync to write it again.
+            Schema\Boolean::make('canDelete')
+                ->get(fn (Reference $reference, FlarumContext $context) => $reference->origin === ReferenceOrigin::Manual
+                    && $context->getActor()->hasPermission(self::PERMISSION)),
             Schema\DateTime::make('createdAt'),
 
             Schema\Relationship\ToOne::make('sourcePost')
@@ -172,28 +188,25 @@ class ReferenceResource extends AbstractDatabaseResource
     }
 
     /**
-     * The counter moves here rather than while building the row, so a save
-     * that never lands cannot leave it inflated.
+     * The counter is recounted here rather than while building the row, so a
+     * save that never lands cannot leave it inflated.
      */
     public function created(object $model, Context $context): ?object
     {
-        if (! $model->isBroken()) {
-            $this->counter->increment($model->target_discussion_id);
-        }
+        $this->counter->refresh([$model->target_discussion_id]);
 
         return parent::created($model, $context);
     }
 
     public function deleting(object $model, Context $context): void
     {
-        // An extracted row is retracted by editing the post that wrote it.
-        // Deleting it here would only invite the next sync to write it again.
         if ($model->origin !== ReferenceOrigin::Manual) {
             throw new PermissionDeniedException;
         }
+    }
 
-        if (! $model->isBroken() && $model->target_discussion_id !== null) {
-            $this->counter->apply([$model->target_discussion_id => -1]);
-        }
+    public function deleted(object $model, Context $context): void
+    {
+        $this->counter->refresh([$model->target_discussion_id]);
     }
 }

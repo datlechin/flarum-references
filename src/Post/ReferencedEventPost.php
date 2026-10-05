@@ -16,6 +16,11 @@ use Flarum\Post\AbstractEventPost;
 use Flarum\Post\MergeableInterface;
 use Flarum\Post\Post;
 
+/**
+ * Content is `{sourcePostIds: list<int>}`. Which of those a reader may follow
+ * is decided when the post is served, through the `referenceSources`
+ * relationship, so nothing about the citing discussion is stored here.
+ */
 class ReferencedEventPost extends AbstractEventPost implements MergeableInterface
 {
     public static string $type = 'discussionReferenced';
@@ -23,12 +28,14 @@ class ReferencedEventPost extends AbstractEventPost implements MergeableInterfac
     public function saveAfter(?Post $previous = null): static
     {
         // A busy discussion can collect a dozen citations in an hour. Merging
-        // them keeps the stream readable instead of turning it into a log.
-        if ($previous instanceof static) {
+        // them keeps the stream readable, but only for the same member, the
+        // way core merges renames: the line names one person, and merging a
+        // second member's citation into it credited the first with both.
+        if ($previous instanceof static && $previous->user_id === $this->user_id) {
             $previous->content = [
                 'sourcePostIds' => array_values(array_unique(array_merge(
-                    $previous->content['sourcePostIds'] ?? [],
-                    $this->content['sourcePostIds'] ?? [],
+                    $previous->sourcePostIds(),
+                    $this->sourcePostIds(),
                 ))),
             ];
             $previous->created_at = $this->created_at;
@@ -43,16 +50,24 @@ class ReferencedEventPost extends AbstractEventPost implements MergeableInterfac
     }
 
     /**
-     * @param list<int> $sourcePostIds
+     * @return list<int>
      */
-    public static function reply(int $discussionId, ?int $userId, array $sourcePostIds): static
+    public function sourcePostIds(): array
+    {
+        $content = $this->content;
+        $ids = is_array($content) && is_array($content['sourcePostIds'] ?? null) ? $content['sourcePostIds'] : [];
+
+        return array_values(array_map(intval(...), array_filter($ids, is_numeric(...))));
+    }
+
+    public static function reply(int $discussionId, Post $source): static
     {
         $post = new static;
 
-        $post->content = ['sourcePostIds' => $sourcePostIds];
+        $post->content = ['sourcePostIds' => [(int) $source->id]];
         $post->created_at = Carbon::now();
         $post->discussion_id = $discussionId;
-        $post->user_id = $userId;
+        $post->user_id = $source->user_id;
 
         return $post;
     }

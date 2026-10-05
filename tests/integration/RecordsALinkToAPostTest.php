@@ -75,20 +75,31 @@ class RecordsALinkToAPostTest extends TestCase
         $this->assertSame(1, $this->referencesCount(1));
     }
 
+    /**
+     * Core sends the reader into discussion 1 whatever follows the number, so
+     * the link still cites that discussion.
+     */
     #[Test]
-    public function a_post_number_that_does_not_exist_records_nothing(): void
+    public function a_post_number_that_does_not_exist_still_cites_the_discussion(): void
     {
         $this->reply(2, 'See '.$this->forum().'/d/1/99');
 
-        $this->assertCount(0, $this->references());
+        $references = $this->references();
+
+        $this->assertCount(1, $references);
+        $this->assertSame(Reference::TARGET_DISCUSSION, $references[0]->target_type);
+        $this->assertSame(1, $references[0]->target_id);
     }
 
     #[Test]
-    public function an_address_naming_a_position_that_is_not_a_number_is_left_alone(): void
+    public function an_address_naming_a_position_that_is_not_a_number_cites_the_discussion(): void
     {
         $this->reply(2, 'See '.$this->forum().'/d/1/near-3');
 
-        $this->assertCount(0, $this->references());
+        $references = $this->references();
+
+        $this->assertCount(1, $references);
+        $this->assertSame(Reference::TARGET_DISCUSSION, $references[0]->target_type);
     }
 
     /**
