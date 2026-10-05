@@ -1,22 +1,6 @@
 // The colours, type scale, headings and row shape here are all core's. Only the
 // blocks are ours, and each one says which core rule it borrows from.
 
-// The discussion sidebar is a horizontal strip of inline-block chips on a
-// phone, which a list of links is not, so these opt back into a block the way
-// core does for `.item-controls`. Both sections render nothing when they have
-// nothing to say, and an empty `li` would still carry core's 15px, so it goes
-// the way core hides an empty post footer.
-@media @phone {
-  .DiscussionPage-nav > ul > li.item-references,
-  .DiscussionPage-nav > ul > li.item-relatedDiscussions {
-    display: block;
-
-    &:empty {
-      display: none;
-    }
-  }
-}
-
 // `.UrlLink-postIcon` is core's own glyph inside an inline discussion link, at
 // this size and opacity. The link itself needs no rule: `.Post-body a` already
 // gives it the weight and underline every link in a post gets.
@@ -33,113 +17,188 @@
   color: var(--muted-color);
 }
 
-// `.HeaderList-header h4` is core's section label inside a list. The bottom
-// margin is ours: that heading sits in a flex header with its own padding,
-// these sit directly on a list whose margin is 0.
-.DiscussionReferences-title,
-.RelatedDiscussions-title {
-  margin: 0 0 10px;
-  font-size: 12px;
-  font-weight: bold;
-  text-transform: uppercase;
+// Sidebar block: "Linked from", "Links to" and "Related discussions".
+// Short, quiet lists, the size of core's sidebar text.
+.DiscussionLinks-section + .DiscussionLinks-section,
+.DiscussionLinks + .RelatedDiscussions {
+  margin-top: 16px;
+}
+
+.DiscussionLinks-heading {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--muted-color);
 }
 
-// Both directions render into one section each, and the second heading would
-// otherwise land flush on the last row of the first list.
-.DiscussionReferences-section + .DiscussionReferences-section {
-  margin-top: 10px;
+.DiscussionLinks-count {
+  margin-inline-start: 6px;
+  font-weight: normal;
+  color: var(--muted-more-color);
 }
 
-.ReferenceList {
+.DiscussionLinks-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
-.ReferenceList-link {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
+// Two lines at most, so one long title cannot take over the sidebar.
+.DiscussionLinks-item {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-color);
+  overflow-wrap: anywhere;
 
   &:hover,
-  &:focus {
-    // Every `a` is underlined on hover, which here would underline the icon
-    // too. The title carries it instead.
+  &:focus-visible {
+    color: var(--link-color);
     text-decoration: none;
-
-    .ReferenceList-title {
-      color: var(--link-color);
-      text-decoration: underline;
-    }
   }
 }
 
-.ReferenceList-icon {
-  flex-shrink: 0;
-  font-size: 90%;
-  opacity: 0.8;
+// Core stretches every button in the sidebar to full width. These are text
+// links, so they keep their own width.
+.DiscussionPage-nav .DiscussionLinks .Button--link {
+  width: auto;
 }
 
-// `.DiscussionListItem-title` ellipsises because it has a row to itself. This
-// one wraps: the sidebar column is 180px, and a title cut at that width says
-// almost nothing.
-.ReferenceList-title {
-  min-width: 0;
-  line-height: 1.3;
-  color: var(--heading-color);
-  overflow-wrap: anywhere;
+.DiscussionPage-nav .DiscussionLinks-all {
+  margin-top: 12px;
+  padding: 0;
+  font-size: 13px;
 }
 
-// `.DiscussionListItem-info` does this same job in core, at this size and
-// colour.
-.ReferenceList-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--muted-more-color);
+// The one-button version for phones, where the sidebar is a row of buttons
+// above the first post.
+.DiscussionLinks-summary {
+  display: none;
+}
 
-  .username {
-    font-weight: bold;
+@media @phone {
+  .DiscussionLinks-body {
+    display: none;
+  }
+
+  .DiscussionLinks-summary {
+    display: inline-block;
+  }
+
+  .DiscussionPage-nav > ul > li.item-relatedDiscussions {
+    display: none;
+  }
+
+  .DiscussionPage-nav > ul > li.item-references:empty {
+    display: none;
   }
 }
 
-// A moderator's note about why two things belong together. It is prose, so it
-// takes the row it needs rather than sharing the metadata line.
-.ReferenceList-note {
-  flex-basis: 100%;
-  font-style: italic;
-}
-
-// The one piece of a reference that carries a judgement, so it is the one piece
-// that gets a chip. `.Pill` puts 6px of padding and a 20px line height on its
-// content, which would stand 32px tall in an 11px row, so only its tokens are
-// borrowed.
-.ReferenceList-relation {
+// The type a moderator gave a link, such as "Duplicate of".
+.LinkBadge {
+  display: inline-block;
   padding: 0 6px;
   border-radius: var(--border-radius);
   background: var(--pill-bg);
   color: var(--pill-color);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.DiscussionLinks-list .LinkBadge {
+  margin-top: 2px;
+}
+
+// `.Modal-body` is painted `--control-bg`, the same as `--pill-bg`.
+.Modal-body .LinkBadge {
+  background: var(--pill-bg-alt);
+  color: var(--pill-color-alt);
+}
+
+// The "All links" dialog.
+.LinksModal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.LinksModal-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.LinksModal-tab.active {
+  background: var(--body-bg);
+  color: var(--text-color);
   font-weight: 600;
 }
 
-// `.Modal-body` is painted `--control-bg`, which is what `--pill-bg` resolves
-// to, so the chip would vanish there. This is the pair core swaps in for a chip
-// on that surface.
-.Modal-body .ReferenceList-relation {
-  --pill-bg: var(--pill-bg-alt);
-  --pill-color: var(--pill-color-alt);
+.LinksModal-tabCount {
+  margin-inline-start: 6px;
+  font-weight: normal;
+  color: var(--muted-color);
 }
 
-// Both are `Button--text`, which is already `padding: 0`, and the list above
-// them has no bottom margin of its own.
-.DiscussionReferences-more,
-.DiscussionReferences-graph {
-  margin-top: 10px;
+.LinkList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.LinkRow {
+  padding: 10px 12px;
+  border-radius: var(--border-radius);
+  background: var(--body-bg);
+}
+
+.LinkRow-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.LinkRow-title {
+  font-weight: 600;
+  color: var(--heading-color);
+  overflow-wrap: anywhere;
+}
+
+.LinkRow-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted-color);
+}
+
+.LinkRow-action {
+  padding: 0;
+  font-size: 12px;
+}
+
+.LinkRow-note {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-color);
 }
 
 // An `svg` inherits none of the page's colour: `fill` starts black and `stroke`
@@ -155,6 +214,7 @@
 }
 
 .ReferenceGraph-edge {
+  fill: none;
   stroke: var(--muted-more-color);
 }
 
@@ -180,6 +240,12 @@
 .ReferenceGraph-label {
   font-size: 12px;
   fill: var(--text-color);
+  // A halo in the modal's background colour, so a line passing behind a
+  // label does not strike it through.
+  paint-order: stroke;
+  stroke: var(--control-bg);
+  stroke-width: 4px;
+  stroke-linejoin: round;
 }
 
 .ReferenceGraph-label--centre {
@@ -198,4 +264,60 @@
   &:hover .ReferenceGraph-label {
     text-decoration: underline;
   }
+}
+
+// Mentions' "replied to this" sits beside this in the same footer and sets the
+// pattern: an icon, then one sentence. The button is `Button--text`, so it
+// already has no padding and reads as the rest of the sentence.
+.Post-referencedBy {
+  .icon {
+    margin-inline-end: 5px;
+  }
+}
+
+.Post-referencedBy-more {
+  margin-inline-start: 4px;
+  vertical-align: baseline;
+  color: inherit;
+  font-weight: bold;
+}
+
+// The add form's search results: a short list under the input.
+.LinkFormModal-results {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.LinkFormModal-result {
+  display: block;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: start;
+  color: var(--link-color);
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    text-decoration: underline;
+  }
+}
+
+.LinkFormModal-empty {
+  padding: 6px 0;
+  color: var(--muted-color);
+}
+
+.LinkFormModal-selected {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.LinkFormModal-selectedTitle {
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }

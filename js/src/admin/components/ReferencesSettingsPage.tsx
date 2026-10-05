@@ -110,27 +110,30 @@ export default class ReferencesSettingsPage extends ExtensionPage {
       'display',
       this.section('display', [
         this.field(SETTING.maxPreview, { type: 'number' }),
-        this.field(SETTING.eventPostEnabled, { type: 'boolean' }),
-        this.field(SETTING.notifyFollowers, { type: 'boolean' }),
+        this.field(SETTING.relatedDiscussionsEnabled, { type: 'boolean' }),
+        this.field(SETTING.relatedDiscussionsLimit, { type: 'number' }),
       ]),
       30
     );
 
     items.add(
-      'discovery',
-      this.section('discovery', [
-        this.field(SETTING.relatedDiscussionsEnabled, { type: 'boolean' }),
-        this.field(SETTING.relatedDiscussionsLimit, { type: 'number' }),
-        this.field(SETTING.relatedMaxCandidates, { type: 'number' }),
-        this.field(SETTING.graphMaxDepth, { type: 'number' }),
-        this.field(SETTING.graphMaxPerHop, { type: 'number' }),
+      'notifications',
+      this.section('notifications', [
+        this.field(SETTING.notifyFollowers, { type: 'boolean' }),
+        this.field(SETTING.eventPostEnabled, { type: 'boolean' }),
       ]),
       20
     );
 
     items.add(
-      'maintenance',
-      this.section('maintenance', [this.field(SETTING.cacheTtl, { type: 'number' }), this.field(SETTING.brokenRetentionDays, { type: 'number' })]),
+      'advanced',
+      this.section('advanced', [
+        this.field(SETTING.relatedMaxCandidates, { type: 'number' }),
+        this.field(SETTING.graphMaxDepth, { type: 'number' }),
+        this.field(SETTING.graphMaxPerHop, { type: 'number' }),
+        this.field(SETTING.cacheTtl, { type: 'number' }),
+        this.field(SETTING.brokenRetentionDays, { type: 'number' }),
+      ]),
       10
     );
 

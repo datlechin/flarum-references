@@ -4,6 +4,7 @@ import Post from 'flarum/common/models/Post';
 
 import Reference from '../common/models/Reference';
 import DiscussionReferencedNotification from './components/DiscussionReferencedNotification';
+import FollowedDiscussionReferencedNotification from './components/FollowedDiscussionReferencedNotification';
 import PostReferencedNotification from './components/PostReferencedNotification';
 import ReferencedEventPost from './components/ReferencedEventPost';
 import ReferencesGambit from './query/ReferencesGambit';
@@ -13,7 +14,12 @@ import HasReferencesGambit from './query/HasReferencesGambit';
 export default [
   new Extend.Store().add('post-references', Reference),
 
-  new Extend.Model(Post).attribute<number>('referencedByCount').hasMany<Reference>('referencedBy'),
+  new Extend.Model(Post)
+    .attribute<number>('referencedByCount')
+    .hasMany<Reference>('referencedBy')
+    // Only ever filled on a `discussionReferenced` event post: the citing posts
+    // this reader may follow.
+    .hasMany<Post>('referenceSources'),
 
   new Extend.Model(Discussion)
     .attribute<number>('referencedByCount')
@@ -22,7 +28,10 @@ export default [
     .hasMany<Reference>('referencedBy')
     .hasMany<Reference>('outgoingReferences'),
 
-  new Extend.Notification().add('discussionReferenced', DiscussionReferencedNotification).add('postReferenced', PostReferencedNotification),
+  new Extend.Notification()
+    .add('discussionReferenced', DiscussionReferencedNotification)
+    .add('postReferenced', PostReferencedNotification)
+    .add('followedDiscussionReferenced', FollowedDiscussionReferencedNotification),
 
   new Extend.PostTypes().add('discussionReferenced', ReferencedEventPost),
 

@@ -33,13 +33,13 @@ export default class RelatedDiscussions<CustomAttrs extends IRelatedDiscussionsA
     if (!response.data.length) return null;
 
     return (
-      <section className="RelatedDiscussions">
-        <h3 className="RelatedDiscussions-title">{app.translator.trans('datlechin-references.forum.related.title')}</h3>
-        <ul className="ReferenceList">
+      <section className="RelatedDiscussions DiscussionLinks-section">
+        <h4 className="DiscussionLinks-heading">{app.translator.trans('datlechin-references.forum.related.title')}</h4>
+        <ul className="DiscussionLinks-list">
           {response.data.map((discussion) => (
             <li key={discussion.id}>
-              <Link href={app.route('discussion', { id: discussion.slug })} className="ReferenceList-link">
-                <span className="ReferenceList-title">{discussion.title}</span>
+              <Link href={app.route('discussion', { id: discussion.slug })} className="DiscussionLinks-item">
+                {discussion.title}
               </Link>
             </li>
           ))}

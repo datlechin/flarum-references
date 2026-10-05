@@ -16,7 +16,7 @@ export default function addMostReferencedSort() {
   extend(DiscussionListState.prototype, 'sortMap', function (map: SortMap) {
     map.mostReferenced = {
       sort: '-referencesCount',
-      label: app.translator.trans('datlechin-references.forum.most_referenced.sort'),
+      label: app.translator.trans('datlechin-references.forum.sort.most_linked'),
     };
   });
 }

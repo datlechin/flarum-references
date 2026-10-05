@@ -4,7 +4,7 @@ declare module 'flarum/common/models/Post' {
   export default interface Post {
     referencedBy: () => false | (Reference | undefined)[];
     referencedByCount: () => number;
-    outgoingReferences: () => false | (Reference | undefined)[];
+    referenceSources: () => false | (Post | undefined)[];
   }
 }
 

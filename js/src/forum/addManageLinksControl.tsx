@@ -6,16 +6,20 @@ import ItemList from 'flarum/common/utils/ItemList';
 import type Discussion from 'flarum/common/models/Discussion';
 import type Mithril from 'mithril';
 
-import ManualReferenceModal from './components/ManualReferenceModal';
+import LinksModal from './components/LinksModal';
 
-export default function addManualReferenceControl() {
+/**
+ * "Manage links" in the discussion's moderation menu, beside Rename and Lock.
+ * It opens the same list readers see, with the moderator's actions on it.
+ */
+export default function addManageLinksControl() {
   extend(DiscussionControls, 'moderationControls', function (items: ItemList<Mithril.Children>, discussion: Discussion) {
     if (!discussion.attribute<boolean>('canManageReferences')) return;
 
     items.add(
-      'addReference',
-      <Button icon="fas fa-link" onclick={() => app.modal.show(ManualReferenceModal, { discussion })}>
-        {app.translator.trans('datlechin-references.forum.manual.add_button')}
+      'manageLinks',
+      <Button icon="fas fa-link" onclick={() => app.modal.show(LinksModal, { discussion })}>
+        {app.translator.trans('datlechin-references.forum.links.manage_button')}
       </Button>
     );
   });

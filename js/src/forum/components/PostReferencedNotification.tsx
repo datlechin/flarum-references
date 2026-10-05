@@ -6,7 +6,7 @@ import ReferencedNotification from './ReferencedNotification';
 
 export default class PostReferencedNotification extends ReferencedNotification {
   content(): Mithril.Children {
-    return app.translator.trans('datlechin-references.forum.notifications.post_referenced_text', {
+    return app.translator.trans('datlechin-references.forum.notifications.post_linked_text', {
       username: this.attrs.notification.fromUser(),
     });
   }
